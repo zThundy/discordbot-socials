@@ -26,10 +26,10 @@ class BOT {
         switch (event) {
             case "command":
                 // check if the user executing the command is an admin
-                if (!args[0].member.permissions.has([PermissionsBitField.Flags.Administrator])) return interaction.reply({
-                    content: "You don't have permission to execute this command",
-                    ephemeral: true
-                });
+                // if (!args[0].member.permissions.has([PermissionsBitField.Flags.Administrator])) return interaction.reply({
+                //     content: "You don't have permission to execute this command",
+                //     ephemeral: true
+                // });
                 // check if the command exists and execute it
                 this.commands.forEach((command, string) => {
                     if (args[0].commandName === string)
