@@ -41,3 +41,8 @@ async function execute(interaction, database, client) {
     
     interaction.reply({ embeds: [embed] });
 };
+
+module.exports = {
+    build,
+    execute
+};
