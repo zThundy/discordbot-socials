@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require("discord.js");
+const { SlashCommandBuilder, PermissionsBitField } = require("discord.js");
 const { SelectMenu } = require("./elements/dropdown.js");
 
 // create a random numberic id
@@ -19,6 +19,7 @@ function build(guild) {
             .addChoices({ name: '❌ Remove', value: 'removetwitch' })
         return option;
     });
+    command.setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator);
     command.id = internalId;
     command.execute = execute;
     return command;

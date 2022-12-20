@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require("discord.js");
+const { SlashCommandBuilder, PermissionsBitField } = require("discord.js");
 
 const internalId = "472513600254789";
 
@@ -13,6 +13,7 @@ function build(guild) {
             .setRequired(true)
         return option;
     });
+    command.setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator);
     command.id = internalId;
     command.execute = execute;
     return command;

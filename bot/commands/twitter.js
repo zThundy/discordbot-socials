@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionsBitField } = require('discord.js');
 const { SelectMenu } = require('./elements/dropdown.js');
 const { TwitterAPI } = require('../modules/twitter.js');
 const twitter = new TwitterAPI();
@@ -20,6 +20,7 @@ function build(guild) {
             .addChoices({ name: "🔄 Change tag", value: "changetagtwitter" })
         return option;
     });
+    command.setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator);
     command.id = internalId;
     command.execute = execute;
     return command;
