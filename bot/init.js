@@ -56,12 +56,6 @@ class BOT {
         // loop through the files
         for (const file of commandFiles) {
             const cmdFile = require(`./commands/${file}`);
-            // generate a random numeric id with length 30
-            if (cmdFile.internalId) {
-                cmdFile.internalId = String(Math.random().toString(36).substr(2, 30));
-                console.log(`<!> Command ${cmdFile.name} has internal id ${cmdFile.internalId}`)
-            }
-            // build the command
             const command = cmdFile.build(this.guild);
             command.module = cmdFile;
             // register the commands in the application
