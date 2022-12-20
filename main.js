@@ -28,6 +28,7 @@ console.log = async function () {
             arguments[i] = JSON.stringify(arguments[i], null, 2);
     // write the stream to file and to stdout out
     logStream.write(new Date().toLocaleString() + " - " + Array.from(arguments).join(" ") + "\r\n");
+    // write to standard output
     process.stdout.write(Array.from(arguments).join(" ") + "\r\n");
     // process.stderr.write(Array.from(arguments).join(" ") + "\r\n");
     // check if the current log file is bigger than 10MB and if so, rename it to the current date and time and create a new one
@@ -38,10 +39,15 @@ const _rotateLog = () => {
     return new Promise((resolve, reject) => {
         if (fs.existsSync(logFile)) {
             const date = new Date();
+            // get the new path
             const newFile = path.join(__dirname, "bot/data", `log_${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}_${date.getHours()}-${date.getMinutes()}-${date.getSeconds()}.txt`);
-            console.log(`Renaming log file to ${newFile}`)
+            // print file rotation
+            console.log(`Renaming log file to ${newFile}`);
+            // end the stream of the current log file
             logStream.end();
+            // rename the current log file to the new path
             fs.renameSync(logFile, newFile);
+            // create a new log file
             logStream = fs.createWriteStream(logFile, { flags: "a" });
             resolve();
         }
@@ -109,10 +115,10 @@ client.on(Events.Error, (err) => {
 });
 
 const initBot = (guild) => {
+    // check if the bot is enabled for this guild
     const cfgBot = config.bots.filter(bot => bot.guild_id === guild.id)[0];
-    if (cfgBot) {
-        bots[guild.id] = new BOT(client, guild);
-    }
+    if (cfgBot) bots[guild.id] = new BOT(client, guild);
 };
 
+// login to discord
 client.login(config.token);
