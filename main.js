@@ -18,14 +18,9 @@ const { BOT } = require("./bot/init.js");
 const fs = require("fs");
 const path = require("path");
 const logFile = path.join(__dirname, "bot/data", "log.txt");
-const logStream = fs.createWriteStream(logFile, { flags: "a" });
-// check if log file exists, if so, rename it to the current date and create a new one
-if (fs.existsSync(logFile)) {
-    const date = new Date();
-    const newFile = path.join(__dirname, "bot/data", `log_${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}.txt`);
-    fs.renameSync(logFile, newFile);
-}
-console.log = function () {
+// create the new log file
+var logStream = fs.createWriteStream(logFile, { flags: "a" });
+console.log = async function () {
     if (arguments.length === 0) return;
     // check if content is object, then stringify it
     for (var i in arguments)
@@ -34,24 +29,29 @@ console.log = function () {
     // write the stream to file and to stdout out
     logStream.write(new Date().toLocaleString() + " - " + Array.from(arguments).join(" ") + "\r\n");
     process.stdout.write(Array.from(arguments).join(" ") + "\r\n");
+    // process.stderr.write(Array.from(arguments).join(" ") + "\r\n");
+    // check if the current log file is bigger than 10MB and if so, rename it to the current date and time and create a new one
+    if (logStream.bytesWritten > 10000000) await _rotateLog();
 };
 
-// const errFile = path.join(__dirname, "bot/data", "error.txt");
-// const errStream = fs.createWriteStream(errFile, { flags: "a" });
-// console.error = function () {
-//     if (arguments.length === 0) return;
-//     // check if content is object, then stringify it
-//     for (var i in arguments) {
-//         if (typeof arguments[i] === "object") {
-//             arguments[i] = JSON.stringify(arguments[i], null, 2);
-//         }
-//     }
-//     // write the stream to file and to stderr out
-//     errStream.write(new Date().toLocaleString() + " - " + Array.from(arguments).join(" ") + "\r\n");
-//     process.stderr.write(Array.from(arguments).join(" ") + "\r\n");
-// };
+const _rotateLog = () => {
+    return new Promise((resolve, reject) => {
+        if (fs.existsSync(logFile)) {
+            const date = new Date();
+            const newFile = path.join(__dirname, "bot/data", `log_${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}_${date.getHours()}-${date.getMinutes()}-${date.getSeconds()}.txt`);
+            console.log(`Renaming log file to ${newFile}`)
+            logStream.end();
+            fs.renameSync(logFile, newFile);
+            logStream = fs.createWriteStream(logFile, { flags: "a" });
+            resolve();
+        }
+    });
+}
 
 client.on(Events.ClientReady, () => {
+    // rotate log file on api authentication
+    _rotateLog();
+    // init bots
     client.guilds.cache.forEach(guild => {
         initBot(guild);
     });
