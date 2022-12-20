@@ -2,8 +2,8 @@ const { SlashCommandBuilder } = require("discord.js");
 
 function build() {
     const command = new SlashCommandBuilder();
-    command.setName("help");
-    command.setDescription("Shows a help message");
+    command.setName("info");
+    command.setDescription("Shows some informations about the bot");
     command.setDMPermission(false);
     command.execute = execute;
     return command;
