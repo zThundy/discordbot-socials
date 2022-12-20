@@ -37,7 +37,11 @@ async function execute(interaction, database) {
             {
                 name : "📜 Nickname (/nickname)",
                 value: "Use this command to change the nickname of the bot in the current guild."
-            }
+            },
+            {
+                name : "📜 Info (/info)",
+                value: "Use this command to get information about the bot."
+            },
         ],
         footer: {
             text: "Made with ❤️ by zThundy__"
