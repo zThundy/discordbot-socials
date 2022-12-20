@@ -22,18 +22,12 @@ class BOT {
 
     // main event handler for the current bot instance
     event(event, ...args) {
-        const interaction = args[0];
         switch (event) {
             case "command":
-                // check if the user executing the command is an admin
-                // if (!args[0].member.permissions.has([PermissionsBitField.Flags.Administrator])) return interaction.reply({
-                //     content: "You don't have permission to execute this command",
-                //     ephemeral: true
-                // });
                 // check if the command exists and execute it
                 this.commands.forEach((command, string) => {
                     if (args[0].commandName === string)
-                        if (command.module.execute) command.module.execute(args[0], this.database);
+                        if (command.module.execute) command.module.execute(args[0], this.database, this.client);
                 });
                 break;
             case "select":
@@ -42,7 +36,7 @@ class BOT {
                 this.commands.forEach((command, string) => {
                     const customId = args[0].customId.split(";")[1];
                     if (command.id === customId)
-                        if (command.module.interaction) command.module.interaction(args[0], this.database);
+                        if (command.module.interaction) command.module.interaction(args[0], this.database, this.client);
                 });
                 break;
             case "message":
