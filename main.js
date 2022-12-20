@@ -19,14 +19,18 @@ const fs = require("fs");
 const path = require("path");
 const logFile = path.join(__dirname, "bot/data", "log.txt");
 const logStream = fs.createWriteStream(logFile, { flags: "a" });
+// check if log file exists, if so, rename it to the current date and create a new one
+if (fs.existsSync(logFile)) {
+    const date = new Date();
+    const newFile = path.join(__dirname, "bot/data", `log_${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}.txt`);
+    fs.renameSync(logFile, newFile);
+}
 console.log = function () {
     if (arguments.length === 0) return;
     // check if content is object, then stringify it
-    for (var i in arguments) {
-        if (typeof arguments[i] === "object") {
+    for (var i in arguments)
+        if (typeof arguments[i] === "object")
             arguments[i] = JSON.stringify(arguments[i], null, 2);
-        }
-    }
     // write the stream to file and to stdout out
     logStream.write(new Date().toLocaleString() + " - " + Array.from(arguments).join(" ") + "\r\n");
     process.stdout.write(Array.from(arguments).join(" ") + "\r\n");
