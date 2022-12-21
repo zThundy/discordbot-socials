@@ -27,7 +27,7 @@ async function execute(interaction, database) {
                 value: "You can use this command to create and manage a role picker.",
             },
             {
-                name: "📜 Twicth (/twitch)",
+                name: "📜 Twitch (/twitch)",
                 value: "You can use this feature to configure in the channel where it's executed, an automatic announcement that will be sent every time someone is live on twitch.",
             },
             {

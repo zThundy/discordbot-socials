@@ -129,7 +129,7 @@ class TwitchApi {
         if (typeof stream === "string") stream = JSON.parse(stream);
 
         const embed = {
-            title: stream.user_name + " is not live on Twitch!",
+            title: stream.user_name + " is now live on Twitch!",
             url: `https://twitch.tv/${stream.user_name}`,
             color: 0x6441a5,
             timestamp: new Date().toISOString(),

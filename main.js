@@ -118,7 +118,21 @@ client.on(Events.Error, (err) => {
 const initBot = (guild) => {
     // check if the bot is enabled for this guild
     const cfgBot = config.bots.filter(bot => bot.guild_id === guild.id)[0];
-    if (cfgBot) bots[guild.id] = new BOT(client, guild);
+    if (cfgBot) {
+        bots[guild.id] = new BOT(client, guild);
+    } else {
+        // send a message to the guild owner
+        // const channel = guild.channels.cache.find(channel => channel.type === 'GUILD_TEXT' && channel.permissionsFor(guild.me).has('SEND_MESSAGES'))
+        guild.channels.cache.forEach((channel) => {
+            if (channel.type === 2) {
+                if (channel.permissionsFor(guild.members.me).has("SEND_MESSAGES")) {
+                    return channel.send({
+                        content: "Sorry, but this bot is not enabled for this guild. Join the support server for more information: https://discord.zthundy.online/"
+                    });
+                }
+            }
+        });
+    }
 };
 
 // login to discord
