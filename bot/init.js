@@ -2,7 +2,7 @@ const SQL = require("./modules/database.js");
 const fs = require("fs");
 const { TwitchApi } = require("./modules/twitch.js");
 const { Cronjob } = require("./modules/cron.js");
-const { PermissionsBitField } = require('discord.js');
+const { Uploader } = require("./modules/uploader.js");
 
 class BOT {
     constructor(client, guild) {
@@ -13,6 +13,7 @@ class BOT {
         this.commands = new Map();
         this.cron = new Cronjob();
         this.twitch = new TwitchApi(require("../config.json"));
+        this.uploader = new Uploader(this.client, this.guild, this.database);
         this.database.init().then(() => {
             this._init();
         }).catch(err => {
@@ -57,7 +58,7 @@ class BOT {
             // add them to the commands map to check if they exist later
             this.commands.set(command.name, command);
             console.log(`<!> Command ${command.name} loaded`);
-            if (command.module.init) command.module.init(this.database, { twitch: this.twitch, cron: this.cron, client: this.client, guild: this.guild });
+            if (command.module.init) command.module.init(this.database, { twitch: this.twitch, cron: this.cron, client: this.client, guild: this.guild, uploader: this.uploader });
         }
     }
 }
