@@ -11,12 +11,13 @@ class SQL {
         return new Promise(async (resolve, reject) => {
             try {
                 this.db = new sqlite.Database(`./bot/data/main.db`);
-                await this.db.run("CREATE TABLE IF NOT EXISTS twicth (guildId TEXT, channelId TEXT, channelName TEXT, discordChannel TEXT)");
-                await this.db.run("CREATE TABLE IF NOT EXISTS clips (guildId TEXT, channelId TEXT, channelName TEXT, discordChannel TEXT, lastVideoId TEXT, roleId TEXT)");
-                await this.db.run("CREATE TABLE IF NOT EXISTS twitter (guildId TEXT, channelId TEXT, accountName TEXT, discordChannel TEXT, lastTweetId TEXT, roleId TEXT)");
-                await this.db.run("CREATE TABLE IF NOT EXISTS nicknames (guildId TEXT, nickname TEXT)");
-                await this.db.run("CREATE TABLE IF NOT EXISTS rolesSelector (guildId TEXT, selectorId TEXT, embed TEXT)");
-                await this.db.run("CREATE TABLE IF NOT EXISTS roles (guildId TEXT, selectorId TEXT, roleId TEXT, roleName TEXT)");
+                this.db.run("CREATE TABLE IF NOT EXISTS twicth (guildId TEXT, channelId TEXT, channelName TEXT, discordChannel TEXT)");
+                this.db.run("CREATE TABLE IF NOT EXISTS clips (guildId TEXT, channelId TEXT, channelName TEXT, discordChannel TEXT, lastVideoId TEXT, roleId TEXT)");
+                this.db.run("CREATE TABLE IF NOT EXISTS twitter (guildId TEXT, channelId TEXT, accountName TEXT, discordChannel TEXT, lastTweetId TEXT, roleId TEXT)");
+                this.db.run("CREATE TABLE IF NOT EXISTS nicknames (guildId TEXT, nickname TEXT)");
+                this.db.run("CREATE TABLE IF NOT EXISTS rolesSelector (guildId TEXT, selectorId TEXT, embed TEXT)");
+                this.db.run("CREATE TABLE IF NOT EXISTS roles (guildId TEXT, selectorId TEXT, roleId TEXT, roleName TEXT)");
+                this.db.run("CREATE TABLE IF NOT EXISTS pictures (guildId TEXT, uuid TEXT, url TEXT)");
                 resolve();
             } catch (err) {
                 console.error(err);
@@ -164,6 +165,15 @@ class SQL {
         });
     }
 
+    getAllPictures(guildId) {
+        return new Promise((resolve, reject) => {
+            this.db.all("SELECT * FROM pictures WHERE guildId = ?", [guildId], (err, rows) => {
+                if (err) reject(err);
+                resolve(rows);
+            });
+        });
+    }
+
     createTwitchChannel(guildId, channelId, channelName, discordChannel) {
         this.db.run("INSERT INTO twicth VALUES (?, ?, ?, ?)", [guildId, channelId, channelName, discordChannel]);
     }
@@ -201,6 +211,11 @@ class SQL {
             }
         });
     }
+
+    savePicture(guildId, uuid, url) {
+        this.db.run("INSERT INTO pictures VALUES (?, ?, ?)", [guildId, uuid, url]);
+    }
+
 }
 
 module.exports = SQL;
