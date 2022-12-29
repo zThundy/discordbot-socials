@@ -116,6 +116,7 @@ client.on(Events.Error, (err) => {
 });
 
 const initBot = (guild) => {
+    console.log(">>> Initializing bot for guild " + guild.name + " (" + guild.id + ")");
     // check if the bot is enabled for this guild
     const cfgBot = config.bots.filter(bot => bot.guild_id === guild.id)[0];
     if (cfgBot) {
