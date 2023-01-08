@@ -1,4 +1,5 @@
 const { SlashCommandBuilder } = require("discord.js");
+const config = require("../..config.json");
 
 function build() {
     const command = new SlashCommandBuilder();
@@ -20,6 +21,8 @@ const _getFields = (client) => {
 
         const _sleep = (ms) => { return new Promise(resolve => setTimeout(resolve, ms)); }
         client.guilds.cache.forEach(async guild => {
+            const bot = config.bots.filter(bot => bot.guild_id === guild.id)[0];
+            if (!bot) return;
             var data = {}
             if (!guild.vanityURLCode) {
                 var invites = await guild.invites.fetch();
