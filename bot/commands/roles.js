@@ -150,6 +150,8 @@ async function add(interaction, database) {
                 database.addRoleToSelector(guild.id, selectorId, role.id, role.name)
                 m.reply("Role added to the selector");
                 data.collected.push(role);
+            } else {
+                m.reply("Please tag a valid role\n\nIf you want to cancel the operation, send **cancel**\nIf you are done adding roles, send **done**");
             }
         }
     });
