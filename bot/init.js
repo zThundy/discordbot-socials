@@ -3,17 +3,20 @@ const fs = require("fs");
 const { TwitchApi } = require("./modules/twitch.js");
 const { Cronjob } = require("./modules/cron.js");
 const { Uploader } = require("./modules/uploader.js");
+const { TwitterAPI } = require("./modules/twitter.js");
 
 class BOT {
     constructor(client, guild) {
+        const config = require("../config.json");
         this.client = client;
         this.guild = guild;
         console.log(`>>> Bot initialized for guild ${guild.name}`);
         this.database = new SQL();
         this.commands = new Map();
         this.cron = new Cronjob();
-        this.twitch = new TwitchApi(require("../config.json"));
-        this.uploader = new Uploader(this.client, this.guild, this.database);
+        this.twitch = new TwitchApi(config);
+        this.twitter = new TwitterAPI();
+        // this.uploader = new Uploader(this.client, this.guild, this.database);
         this.database.init().then(() => {
             this._init();
         }).catch(err => {
@@ -52,13 +55,21 @@ class BOT {
         for (const file of commandFiles) {
             const cmdFile = require(`./commands/${file}`);
             const command = cmdFile.build(this.guild);
-            command.module = cmdFile;
             // register the commands in the application
             this.client.application.commands.create(command);
+            // add the command file as a module
+            command.module = cmdFile;
             // add them to the commands map to check if they exist later
             this.commands.set(command.name, command);
             console.log(`<!> Command ${command.name} loaded`);
-            if (command.module.init) command.module.init(this.database, { twitch: this.twitch, cron: this.cron, client: this.client, guild: this.guild, uploader: this.uploader });
+            if (command.module.init) command.module.init(this.database, {
+                twitter: this.twitter || null,
+                twitch: this.twitch || null,
+                cron: this.cron,
+                client: this.client,
+                guild: this.guild,
+                uploader: this.uploader
+            });
         }
     }
 }

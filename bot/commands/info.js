@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require("discord.js");
-const config = require("../..config.json");
+const config = require("../../config.json");
 
 function build() {
     const command = new SlashCommandBuilder();

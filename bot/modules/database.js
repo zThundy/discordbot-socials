@@ -11,19 +11,25 @@ class SQL {
         return new Promise(async (resolve, reject) => {
             try {
                 this.db = new sqlite.Database(`./bot/data/main.db`);
-                this.db.run("CREATE TABLE IF NOT EXISTS twicth (guildId TEXT, channelId TEXT, channelName TEXT, discordChannel TEXT)");
-                this.db.run("CREATE TABLE IF NOT EXISTS clips (guildId TEXT, channelId TEXT, channelName TEXT, discordChannel TEXT, lastVideoId TEXT, roleId TEXT)");
-                this.db.run("CREATE TABLE IF NOT EXISTS twitter (guildId TEXT, channelId TEXT, accountName TEXT, discordChannel TEXT, lastTweetId TEXT, roleId TEXT)");
-                this.db.run("CREATE TABLE IF NOT EXISTS nicknames (guildId TEXT, nickname TEXT)");
-                this.db.run("CREATE TABLE IF NOT EXISTS rolesSelector (guildId TEXT, selectorId TEXT, embed TEXT)");
-                this.db.run("CREATE TABLE IF NOT EXISTS roles (guildId TEXT, selectorId TEXT, roleId TEXT, roleName TEXT)");
-                this.db.run("CREATE TABLE IF NOT EXISTS pictures (guildId TEXT, uuid TEXT, url TEXT)");
+                await this._run("CREATE TABLE IF NOT EXISTS twicth (guildId TEXT, channelId TEXT, channelName TEXT, discordChannel TEXT)");
+                await this._run("CREATE TABLE IF NOT EXISTS clips (guildId TEXT, channelId TEXT, channelName TEXT, discordChannel TEXT, lastVideoId TEXT, roleId TEXT)");
+                await this._run("CREATE TABLE IF NOT EXISTS twitter (guildId TEXT, channelId TEXT, accountName TEXT, discordChannel TEXT, lastTweetId TEXT, roleId TEXT)");
+                await this._run("CREATE TABLE IF NOT EXISTS nicknames (guildId TEXT, nickname TEXT)");
+                await this._run("CREATE TABLE IF NOT EXISTS rolesSelector (guildId TEXT, selectorId TEXT, embed TEXT)");
+                await this._run("CREATE TABLE IF NOT EXISTS roles (guildId TEXT, selectorId TEXT, roleId TEXT, roleName TEXT)");
+                await this._run("CREATE TABLE IF NOT EXISTS pictures (guildId TEXT, uuid TEXT, url TEXT)");
                 resolve();
             } catch (err) {
                 console.error(err);
                 reject(err);
             }
         });
+    }
+
+    _run(stmt) {
+        return new Promise((resolve, reject) => {
+            this.db.run(stmt, {}, () => { resolve() });
+        })
     }
 
     addRoleToSelector(guildId, selectorId, roleId, roleName) {

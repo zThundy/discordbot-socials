@@ -122,8 +122,8 @@ const initBot = (guild) => {
     if (cfgBot) {
         bots[guild.id] = new BOT(client, guild);
     } else {
+        console.log(">>> Not initializing for guild " + guild.name + " (" + guild.id + ")");
         // send a message to the guild owner
-        // const channel = guild.channels.cache.find(channel => channel.type === 'GUILD_TEXT' && channel.permissionsFor(guild.me).has('SEND_MESSAGES'))
         guild.channels.cache.forEach((channel) => {
             if (channel.type === 2) {
                 if (channel.permissionsFor(guild.members.me).has("SEND_MESSAGES")) {
