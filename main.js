@@ -80,30 +80,17 @@ client.on(Events.MessageCreate, message => {
 
 client.on(Events.InteractionCreate, (interaction) => {
     try {
+        const guild = interaction.guild;
+        const bot = bots[guild.id];
+        if (!bot) return;
         if (interaction.isCommand()) {
-            const guild = interaction.guild;
-            const bot = bots[guild.id];
-            if (bot) bot.event("command", interaction);
+            bot.event("command", interaction);
         } else if (interaction.isButton()) {
-            const guild = interaction.guild;
-            const bot = bots[guild.id];
-            if (bot) bot.event("button", interaction);
-        } else if (interaction.isSelectMenu()) {
-            const guild = interaction.guild;
-            const bot = bots[guild.id];
-            if (bot) bot.event("select", interaction);
-        } else if (interaction.isContextMenu()) {
-            const guild = interaction.guild;
-            const bot = bots[guild.id];
-            if (bot) bot.event("context", interaction);
-        } else if (interaction.isMessageComponent()) {
-            const guild = interaction.guild;
-            const bot = bots[guild.id];
-            if (bot) bot.event("component", interaction);
-        } else if (interaction.isAutocomplete()) {
-            const guild = interaction.guild;
-            const bot = bots[guild.id];
-            if (bot) bot.event("autocomplete", interaction);
+            bot.event("button", interaction);
+        } else if (interaction.isStringSelectMenu()) {
+            bot.event("select", interaction);
+        } else if (interaction.isModalSubmit()) {
+            bot.event("modal", interaction);
         }
     } catch (err) {
         console.error(err);

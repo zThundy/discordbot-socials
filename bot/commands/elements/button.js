@@ -1,4 +1,4 @@
-const { ButtonBuilder, ButtonStyle } = require('discord.js');
+const { ButtonBuilder, ButtonStyle, ActionRowBuilder } = require('discord.js');
 
 class Button {
     constructor() {
@@ -7,14 +7,24 @@ class Button {
 
     setStyle(style) {
         // accept only ButtonStyle
-        if (style instanceof ButtonStyle) {
-            this.button.setStyle(style);
+        if (style === "danger") {
+            this.button.setStyle(ButtonStyle.Danger);
+        } else if (style === "link") {
+            this.button.setStyle(ButtonStyle.Link);
+        } else if (style === "primary") {
+            this.button.setStyle(ButtonStyle.Primary);
+        } else if (style === "secondary") {
+            this.button.setStyle(ButtonStyle.Secondary);
+        } else if (style === "success") {
+            this.button.setStyle(ButtonStyle.Success);
         } else {
             throw new Error("Invalid button style");
         }
+        return this;
     }
 
     setCustomId(customId) {
+        this.button.id = customId;
         this.button.setCustomId(customId);
         return this;
     }
@@ -40,8 +50,7 @@ class Button {
     }
 
     build() {
-        // set customid as a required field
-        if (!this.button.customId) {
+        if (!this.button.id) {
             throw new Error("CustomId is required");
         }
         return this.button;

@@ -17,6 +17,9 @@ class SQL {
                 await this._run("CREATE TABLE IF NOT EXISTS rolesSelector (guildId TEXT, selectorId TEXT, embed TEXT)");
                 await this._run("CREATE TABLE IF NOT EXISTS roles (guildId TEXT, selectorId TEXT, roleId TEXT, roleName TEXT)");
                 await this._run("CREATE TABLE IF NOT EXISTS pictures (guildId TEXT, uuid TEXT, url TEXT)");
+                await this._run("CREATE TABLE IF NOT EXISTS tickets (id INTEGER, guildId TEXT, channelId TEXT, ticketOwner TEXT, ticketId TEXT, ticketTitle TEXT, ticketDescription TEXT)");
+                await this._run("CREATE TABLE IF NOT EXISTS ticketConfig (guildId TEXT, tagRole TEXT, title TEXT, description TEXT, transcriptChannel TEXT)");
+                await this._run("CREATE TABLE IF NOT EXISTS ticketMessages (ticketId TEXT, content TEXT, username TEXT, authorProfile TEXT, currentTime TEXT, color TEXT, orderDate TEXT, messageType TEXT)");
                 resolve();
             } catch (err) {
                 console.error(err);
@@ -29,6 +32,94 @@ class SQL {
         return new Promise((resolve, reject) => {
             this.db.run(stmt, {}, () => { resolve() });
         })
+    }
+
+    getAllTicketMessages(ticketId) {
+        return new Promise((resolve, reject) => {
+            this.db.all("SELECT * FROM ticketMessages WHERE ticketId = ? ORDER BY orderDate DESC", [ticketId], (err, rows) => {
+                if (err) reject(err);
+                resolve(rows);
+            })
+        })
+    }
+
+    addTicketMessage(ticketId, content, username, authorProfile, currentTime, color, orderDate, messageType) {
+        return new Promise((resolve, reject) => {
+            this.db.run("INSERT INTO ticketMessages (ticketId, content, username, authorProfile, currentTime, color, orderDate, messageType) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [ticketId, content, username, authorProfile, currentTime, color, orderDate, messageType], (err, row) => {
+                if (err) reject(err);
+                resolve();
+            });
+        });
+    }
+
+    deleteTicketMessages(ticketId) {
+        this.db.run("DELETE FROM ticketMessages WHERE ticketId = $id", { $id: ticketId })
+    }
+
+    getLastTicketsId(guildId) {
+        return new Promise((resolve, reject) => {
+            this.db.all("SELECT id FROM tickets WHERE guildId = ? ORDER BY id DESC", [guildId], (err, rows) => {
+                if (err) reject(err);
+                if (rows[0]) resolve(rows[0]["id"]);
+                else resolve(0);
+            })
+        })
+    }
+
+    getTicket(ticketId) {
+        return new Promise((resolve, reject) => {
+            this.db.all("SELECT * FROM tickets WHERE ticketId = ?", [ticketId], (err, rows) => {
+                if (err) reject(err);
+                if (rows[0]) resolve(rows[0]);
+                else resolve(0);
+            })
+        })
+    }
+
+    deleteTicket(ticketId) {
+        this.db.run("DELETE FROM tickets WHERE ticketId = $id", { $id: ticketId })
+    }
+
+    createTicket(id, guildId, channelId, ownerId, ticketId, title, description) {
+        return new Promise((resolve, reject) => {
+            this.db.run(`INSERT INTO tickets (id, guildId, channelId, ticketOwner, ticketId, ticketTitle, ticketDescription)
+                         VALUES ($id, $guildId, $channelId, $ticketOwner, $ticketId, $ticketTitle, $ticketDescription)`,
+            {
+                $id: id,
+                $guildId: guildId,
+                $channelId: channelId,
+                $ticketOwner: ownerId,
+                $ticketId: ticketId,
+                $ticketTitle: title,
+                $ticketDescription: description
+            }, (err, row) => {
+                if (err) reject(err);
+                resolve();
+            });
+        });
+    }
+
+    createTicketConfig(guildId, tagRole, title, description, transcriptChannel) {
+        return new Promise((resolve, reject) => {
+            this.db.run("INSERT INTO ticketConfig (guildId, tagRole, title, description, transcriptChannel) VALUES (?, ?, ?, ?, ?)", [guildId, tagRole, title, description, transcriptChannel], (err, row) => {
+                if (err) reject(err);
+                resolve();
+            });
+        });
+    }
+
+    getTicketConfig(guildId) {
+        return new Promise((resolve, reject) => {
+            this.db.all("SELECT * FROM ticketConfig WHERE guildId = ?", [guildId], (err, rows) => {
+                if (err) reject(err);
+                if (rows[0]) resolve(rows[0]);
+                else resolve(null);
+            })
+        })
+    }
+
+    deleteTicketConfig(guildId) {
+        this.db.run("DELETE FROM ticketConfig WHERE guildId = $id", { $id: guildId });
     }
 
     addRoleToSelector(guildId, selectorId, roleId, roleName) {

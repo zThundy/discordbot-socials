@@ -26,25 +26,62 @@ class BOT {
 
     // main event handler for the current bot instance
     event(event, ...args) {
-        switch (event) {
-            case "command":
-                // check if the command exists and execute it
-                this.commands.forEach((command, string) => {
-                    if (args[0].commandName === string)
-                        if (command.module.execute) command.module.execute(args[0], this.database, this.client);
-                });
-                break;
-            case "select":
-                // check if the customId is in the this.commands map
-                // if it is, execute the command
-                this.commands.forEach((command, string) => {
-                    const customId = args[0].customId.split(";")[1];
-                    if (command.id === customId)
-                        if (command.module.interaction) command.module.interaction(args[0], this.database, this.client);
-                });
-                break;
-            case "message":
-                break;
+        if (event === "command") {
+            // check if the command exists and execute it
+            this.commands.forEach((command, string) => {
+                if (args[0].commandName === string)
+                    if (command.module.execute) command.module.execute(args[0], this.database, this.client);
+            });
+        } else if (event === "select" || event === "modal" || event === "button") {
+            // check if the customId is in the this.commands map
+            // if it is, execute the command
+            this.commands.forEach((command, string) => {
+                const customId = args[0].customId.split(";")[1];
+                if (command.id === customId)
+                    if (command.module.interaction) command.module.interaction(args[0], this.database, this.client);
+            });
+        } else if (event === "message") {
+            const message = args[0];
+            if (message.author.bot) return;
+            if (message.channel.name.includes("ticket-") && message.channel.topic) {
+                message.guild.members.fetch(message.author.id)
+                    .then(m => {
+                        const dateFormat = message.createdAt;
+                        var date = ('0' + dateFormat.getDate()).slice(-2) +
+                            "/" + ('0' + (dateFormat.getMonth() + 1)).slice(-2) +
+                            "/" + dateFormat.getFullYear() +
+                            " " + ('0' + dateFormat.getHours()).slice(-2) +
+                            ":" + ('0' + dateFormat.getMinutes()).slice(-2) +
+                            ":" + ('0' + dateFormat.getSeconds()).slice(-2)
+
+                        if (message.attachments.size > 0) {
+                            message.attachments.forEach((attachment) => {
+                                message.content = attachment.url;
+                                this.database.addTicketMessage(
+                                    message.channel.topic,
+                                    message.content,
+                                    message.author.username,
+                                    message.author.avatarURL(),
+                                    date,
+                                    m.displayHexColor,
+                                    message.createdAt,
+                                    "image"
+                                ).catch(e => console.error(e));
+                            });
+                        } else {
+                            this.database.addTicketMessage(
+                                message.channel.topic,
+                                message.content,
+                                message.author.username,
+                                message.author.avatarURL(),
+                                date,
+                                m.displayHexColor,
+                                message.createdAt,
+                                "text"
+                            ).catch(e => console.error(e));
+                        }
+                    }).catch(e => console.error(e));
+            }
         }
     }
     

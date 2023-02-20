@@ -1,0 +1,122 @@
+<html>
+    <head>
+        <title>{channelName}</title>
+    </head>
+
+    <body>
+        <div class="header" id="myHeader">
+            <h1>Title: {ticketTitle}</h1>
+            <h2>Description: {ticketDescription}</h2>
+        </div>
+
+        <div class="messages">
+        </div>
+    </body>
+
+    <style>
+        html, body {
+            font-family: sans-serif;
+            background-color: #313338;
+            margin: 0;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            padding: 10px 16px;
+            background: #424242;
+            border-bottom: 2px solid white;
+            color: #f1f1f1;
+        }
+
+        .sticky {
+            position: fixed;
+            top: 0;
+            width: 100%
+        }
+
+        .messages {
+            position: relative;
+            height: 100%;
+            overflow-y: scroll;
+        }
+
+        .message-container {
+            margin: 15px;
+            display: flex;
+            flex-direction: row;
+        }
+
+        .message-container:hover {
+            border-radius: 30px;
+            background-color: #2a2b30;
+            flex-direction: row;
+        }
+
+        .message-author-icon {
+            margin-top: 35px;
+            margin-bottom: 25px;
+            margin-left: 25px;
+            margin-right: 15px;
+            width: 80px;
+        }
+
+        .message-author-icon:hover {
+            cursor: pointer;
+        }
+
+        .message-author-icon img {
+            width: 70px;
+            border-radius: 50%;
+        }
+
+        .message-author {
+            margin-top: 25px;
+            margin-left: 25px;
+            font-style: bold;
+        }
+
+        .message-author .message-author-name:hover {
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+        .message-author-date {
+            color: #585b63;
+            cursor: pointer;
+            font-size: 0.8em;
+            margin-left: 15px;
+        }
+
+        .message-content {
+            color: white;
+            margin-top: 10px;
+            margin-bottom: 25px;
+            margin-left: 25px;
+            width: 98%;
+        }
+    </style>
+
+    <script>
+        // When the user scrolls the page, execute myFunction
+        window.onscroll = function() { scrollCheck() };
+
+        // Get the header
+        var header = document.getElementById("myHeader");
+
+        // Get the offset position of the navbar
+        var sticky = header.offsetTop;
+
+        // Add the sticky class to the header when you reach its scroll position. Remove "sticky" when you leave the scroll position
+        function scrollCheck() {
+            if (window.pageYOffset > sticky) {
+                header.classList.add("sticky");
+            } else {
+                header.classList.remove("sticky");
+            }
+        }
+    </script>
+</html>
