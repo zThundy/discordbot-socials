@@ -12,7 +12,6 @@ class SQL {
             try {
                 this.db = new sqlite.Database(`./bot/data/main.db`);
                 await this._run("CREATE TABLE IF NOT EXISTS twicth (guildId TEXT, channelId TEXT, channelName TEXT, discordChannel TEXT)");
-                await this._run("CREATE TABLE IF NOT EXISTS clips (guildId TEXT, channelId TEXT, channelName TEXT, discordChannel TEXT, lastVideoId TEXT, roleId TEXT)");
                 await this._run("CREATE TABLE IF NOT EXISTS twitter (guildId TEXT, channelId TEXT, accountName TEXT, discordChannel TEXT, lastTweetId TEXT, roleId TEXT)");
                 await this._run("CREATE TABLE IF NOT EXISTS nicknames (guildId TEXT, nickname TEXT)");
                 await this._run("CREATE TABLE IF NOT EXISTS rolesSelector (guildId TEXT, selectorId TEXT, embed TEXT)");
@@ -153,14 +152,6 @@ class SQL {
         });
     }
 
-    getAllClips(guildId) {
-        return new Promise((resolve, reject) => {
-            this.db.all("SELECT * FROM clips WHERE guildId = ?", [guildId], (err, rows) => {
-                if (err) reject(err);
-                resolve(rows);
-            });
-        });
-    }
 
     getNickname(guildId) {
         return new Promise((resolve, reject) => {
@@ -202,10 +193,6 @@ class SQL {
 
     updateTweetRoleId(guildId, accountName, roleId) {
         this.db.run("UPDATE twitter SET roleId = ? WHERE guildId = ? AND accountName = ?", [roleId, guildId, accountName]);
-    }
-
-    updateClipLastId(guildId, channelName, lastClipId) {
-        this.db.run("UPDATE clips SET lastClipId = ? WHERE guildId = ? AND channelName = ?", [lastClipId, guildId, channelName]);
     }
 
     updateNickname(guildId, nickname) {

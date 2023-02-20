@@ -5,7 +5,7 @@ const internalId = "472513600254789";
 function build(guild) {
     const command = new SlashCommandBuilder();
     command.setName("nickname");
-    command.setDescription("Configure twitch clips notifications");
+    command.setDescription("Change nickname to the bot");
     command.setDMPermission(false);
     command.addStringOption((option) => {
         option.setName('nickname')
