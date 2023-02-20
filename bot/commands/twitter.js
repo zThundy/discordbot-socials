@@ -1,7 +1,5 @@
 const { SlashCommandBuilder, PermissionsBitField } = require('discord.js');
 const { SelectMenu } = require('./elements/dropdown.js');
-const { TwitterAPI } = require('../modules/twitter.js');
-const twitter = new TwitterAPI();
 
 const internalId = "554871236547822";
 
@@ -271,12 +269,12 @@ function _addAccount(account) {
         if (!accounts[uid]) return _extra.cron.remove(uid);
 
         var _account = accounts[uid];
-        twitter.getLastTweet(_account.accountName).then((tweets) => {
+        _extra.twitter.getLastTweet(_account.accountName).then((tweets) => {
             if (tweets.length > 0) {
                 var lastTweet = tweets[0];
                 if (lastTweet.id != _account.lastTweetId) {
                     _extra.client.channels.fetch(_account.channelId).then((channel) => {
-                        const embeds = twitter.getEmbed(lastTweet);
+                        const embeds = _extra.twitter.getEmbed(lastTweet);
                         if (_account.roleId) {
                             channel.send({
                                 content: `<@&${_account.roleId}> **${_account.accountName}** posted a new tweet!\n\n<${embeds[0].url}>`,
