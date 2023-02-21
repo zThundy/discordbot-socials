@@ -1,79 +1,82 @@
-// FUNCTION IN BETA
-// This module is still in beta and i have to test it more
+const fs = require("fs");
+const request = require("request");
 
 class Uploader {
-    constructor(client, guild, database) {
-        // check if the channel exists
-        this.database = database;
-        this.guild = guild;
-        this.pictures = {};
-        const channel = guild.channels.cache.find(channel => channel.name === "upload");
-        if (!channel) {
-            // create a channel in the current guild to upload files
-            guild.channels.create("upload", {
-                type: "GUILD_TEXT",
-                permissionOverwrites: [
-                    {
-                        id: guild.roles.everyone,
-                        deny: ["VIEW_CHANNEL"],
-                    },
-                    {
-                        id: client.user.id,
-                        allow: ["VIEW_CHANNEL"],
-                    },
-                ],
+    constructor(cron) {
+        this.homePath = "./bot/data/images"
+        // create data folder if doesn't exist
+        if (!fs.existsSync(this.homePath)) fs.mkdirSync(this.homePath);
+
+        this.express = require("express");
+        this.app = this.express();
+
+        this.PORT = "52320";
+        this.app.listen(this.PORT, () => {
+            console.log("<EXPRESS> Listening for web request on port " + this.PORT);
+        });
+
+        // every 30 minutes, check creation date, if older than 20 days
+        // delete the file
+        cron.add(30 * 60 * 1000, (uid) => {
+            fs.readdir(this.homePath, (err, files) => {
+                files.forEach(file => {
+                    fs.stat(this.homePath + "/" + file, (error, stats) => {
+                        // in case of any error
+                        if (error) return console.log(error);
+                        
+                        // we will keep the files only for 1 month
+                        const date = new Date();
+                        date.setMonth(date.getMonth() - 1);
+                        const filedate = new Date(stats.atime);
+                        // if the date is expired, delete the file
+                        if (date > filedate) {
+                            
+                        }
+
+                        console.log("File created at:", stats.atime);
+                    });
+                });
             });
-        }
-        this._populatePictures();
+        }, true);
     }
 
-    // function that creates a unique uuid
-    uuidv4() {
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-            return v.toString(16);
-        });
+    addListeners() {
+        // listen for get request for files in folder
+        this.app.get("/", (req, res) => {
+            if (!req.query.key) return res.status(500).send().end();
+            var filePath = this.homePath + "/" + req.query.key;
+            console.log("Trying downloading of file with key " + req.query.key + " Path: " + filePath);
+            if (fs.existsSync(filePath)) {
+                fs.readFile(filePath, (err, data) => {
+                    if (err) return console.error(err);
+                    console.log('Found file! Sending to client');
+                    res.send(data).end();
+                })
+            } else {
+                console.error('No file exists, sending 404');
+                res.status(404).send().end();
+            }
+        })
+
+        return this;
     }
 
-    /**
-     * this function sends a picture to the upload channel
-     * @param {String} url
-     */
-    sendPicture(url) {
-        // send a picture to the upload channel
-        const channel = this.guild.channels.cache.find(channel => channel.name === "upload");
-        if (!channel) return console.log("<?> Upload channel not found in guild " + this.guild.name);
-        const uuid = this.uuidv4();
-        channel.send(url).then(msg => {
-            // save message url in pictures array
-            let attachment = msg.attachments.size > 0 ? msg.attachments.array()[0].url : null
-            if (!attachment) return console.log("<?> No attachment found in message " + msg.id);
-            this.pictures[uuid] = {uuid, url: attachment};
-            this.database.savePicture(this.guild.id, uuid, attachment);
+    downloadPicture(url) {
+        var dt = new Date().getTime();
+        var uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            var r = (dt + Math.random()*16)%16 | 0;
+            dt = Math.floor(dt/16);
+            return (c=='x' ? r :(r&0x3|0x8)).toString(16);
         });
+
+        request.get(url)
+            .on('error', console.error)
+            .pipe(fs.createWriteStream("./bot/data/images/" + uuid));
+        return "http://localhost:52320/?key=" + uuid
+    }
+
+    uuid() {
         return uuid;
-    }
-
-    /**
-     * this function returns a picture from the upload channel
-     * @param {String} uuid
-     * @returns {String} url of the picture
-     */
-    getPicture(uuid) {
-        if (!uuid) return null;
-        if (!this.pictures[uuid]) return null;
-        return this.pictures[uuid].attachment;
-    }
-
-    _populatePictures() {
-        this.database.getAllPictures(this.guild.id).then(pictures => {
-            pictures.forEach(picture => {
-                this.pictures[picture.uuid] = {
-                    uuid: picture.uuid,
-                    url: picture.url
-                };
-            });
-        });
     }
 }
 

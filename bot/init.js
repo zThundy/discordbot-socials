@@ -7,6 +7,11 @@ const { TwitterAPI } = require("./modules/twitter.js");
 
 class BOT {
     constructor(client, guild) {
+        // init data folders
+        this._initDataFolders();
+        // require logger module
+        require("./modules/logger.js");
+        // init the bot for current guild
         const config = require("../config.json");
         this.client = client;
         this.guild = guild;
@@ -16,12 +21,9 @@ class BOT {
         this.cron = new Cronjob();
         this.twitch = new TwitchApi(config);
         this.twitter = new TwitterAPI();
-        // this.uploader = new Uploader(this.client, this.guild, this.database);
-        this.database.init().then(() => {
-            this._init();
-        }).catch(err => {
-            console.error(err);
-        });
+        this.uploader = new Uploader(this.cron).addListeners();
+        // init database and commands
+        this.database.init().then(() => this._buildCommands()).catch(err => console.error(err));
     }
 
     // main event handler for the current bot instance
@@ -40,7 +42,7 @@ class BOT {
                 if (command.id === customId)
                     if (command.module.interaction) command.module.interaction(args[0], this.database, this.client);
             });
-        } else if (event === "message") {
+        } else if (event === "message" || event === "messageUpdate") {
             const message = args[0];
             if (message.author.bot) return;
             if (message.channel.name.includes("ticket-") && message.channel.topic) {
@@ -54,38 +56,50 @@ class BOT {
                             ":" + ('0' + dateFormat.getMinutes()).slice(-2) +
                             ":" + ('0' + dateFormat.getSeconds()).slice(-2)
 
+                        
+                        var type = "text";
+                        // check if the message includes a URL with jpg, png or gif
+                        if ((/^https?:\/\/.+\jpg|jpeg|png|webp|avif|gif|svg$/i).test(message.content)) {
+                            type = "image";
+                            message.content = this.uploader.downloadPicture(message.content);
+                        }
+                        // check if the message has attachments, if so download them
                         if (message.attachments.size > 0) {
+                            type = "image";
                             message.attachments.forEach((attachment) => {
-                                message.content = attachment.url;
-                                this.database.addTicketMessage(
-                                    message.channel.topic,
-                                    message.content,
-                                    message.author.username,
-                                    message.author.avatarURL(),
-                                    date,
-                                    m.displayHexColor,
-                                    message.createdAt,
-                                    "image"
-                                ).catch(e => console.error(e));
+                                message.content = this.uploader.downloadPicture(attachment.url);
                             });
+                        }
+
+                        if (event === "messageUpdate") {
+                            this.database.updateTicketMessage(message.channel.topic, args[0].content, args[1].content).catch(e => console.error(e));
                         } else {
                             this.database.addTicketMessage(
-                                message.channel.topic,
-                                message.content,
-                                message.author.username,
-                                message.author.avatarURL(),
-                                date,
-                                m.displayHexColor,
-                                message.createdAt,
-                                "text"
+                                message.channel.topic, // ticketId
+                                message.content, // content of message
+                                message.author.username, // username of user
+                                message.author.avatarURL(), // avatar url of user
+                                date, // date of message creation
+                                m.displayHexColor, // hex color of user
+                                message.createdAt, // date of message creation in MS
+                                type, // type of message (text or image)
+                                "false" // if message has been edited
                             ).catch(e => console.error(e));
                         }
                     }).catch(e => console.error(e));
             }
         }
     }
+
+    _initDataFolders() {
+        // create data folder if doesn't exist
+        if (!fs.existsSync("./bot/data")) fs.mkdirSync("./bot/data");
+        // create al data subfolders if they don't exist
+        if (!fs.existsSync("./bot/data/images")) fs.mkdirSync("./bot/data/images");
+        if (!fs.existsSync("./bot/data/tickets")) fs.mkdirSync("./bot/data/tickets");
+    }
     
-    _init() {
+    _buildCommands() {
         // read all the commands js files in the commands folder
         const commandFiles = fs.readdirSync("./bot/commands").filter(file => file.endsWith(".js"));
         // loop through the files
@@ -104,8 +118,7 @@ class BOT {
                 twitch: this.twitch || null,
                 cron: this.cron,
                 client: this.client,
-                guild: this.guild,
-                uploader: this.uploader
+                guild: this.guild
             });
         }
     }
