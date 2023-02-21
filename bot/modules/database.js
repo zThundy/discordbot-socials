@@ -19,7 +19,7 @@ class SQL {
                 await this._run("CREATE TABLE IF NOT EXISTS pictures (guildId TEXT, uuid TEXT, url TEXT)");
                 await this._run("CREATE TABLE IF NOT EXISTS tickets (id INTEGER, guildId TEXT, channelId TEXT, ticketOwner TEXT, ticketId TEXT, ticketTitle TEXT, ticketDescription TEXT)");
                 await this._run("CREATE TABLE IF NOT EXISTS ticketConfig (guildId TEXT, tagRole TEXT, title TEXT, description TEXT, transcriptChannel TEXT)");
-                await this._run("CREATE TABLE IF NOT EXISTS ticketMessages (ticketId TEXT, content TEXT, username TEXT, authorProfile TEXT, currentTime TEXT, color TEXT, orderDate TEXT, messageType TEXT)");
+                await this._run("CREATE TABLE IF NOT EXISTS ticketMessages (ticketId TEXT, content TEXT, username TEXT, authorProfile TEXT, currentTime TEXT, color TEXT, orderDate TEXT, messageType TEXT, edited TEXT)");
                 resolve();
             } catch (err) {
                 console.error(err);
@@ -43,9 +43,18 @@ class SQL {
         })
     }
 
-    addTicketMessage(ticketId, content, username, authorProfile, currentTime, color, orderDate, messageType) {
+    updateTicketMessage(ticketId, content, newContent) {
         return new Promise((resolve, reject) => {
-            this.db.run("INSERT INTO ticketMessages (ticketId, content, username, authorProfile, currentTime, color, orderDate, messageType) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [ticketId, content, username, authorProfile, currentTime, color, orderDate, messageType], (err, row) => {
+            this.db.run("UPDATE ticketMessages SET content = ?, edited = 'true' WHERE content = ? AND ticketId = ?", [newContent, content, ticketId], (err, row) => {
+                if (err) reject(err);
+                resolve();
+            });
+        });
+    }
+
+    addTicketMessage(ticketId, content, username, authorProfile, currentTime, color, orderDate, messageType, edited) {
+        return new Promise((resolve, reject) => {
+            this.db.run("INSERT INTO ticketMessages (ticketId, content, username, authorProfile, currentTime, color, orderDate, messageType, edited) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", [ticketId, content, username, authorProfile, currentTime, color, orderDate, messageType, edited], (err, row) => {
                 if (err) reject(err);
                 resolve();
             });

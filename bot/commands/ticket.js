@@ -299,7 +299,8 @@ async function interaction(interaction, database) {
                             channelName: channel.name,
                             title: ticket.ticketTitle,
                             description: ticket.ticketDescription,
-                            ticketId
+                            ticketId,
+                            edited: ticket.edited
                         });
                         if (ticketConfig && ticketConfig.transcriptChannel !== "0") {
                             guild.channels.cache.get(ticketConfig.transcriptChannel)

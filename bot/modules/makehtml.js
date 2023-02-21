@@ -43,6 +43,7 @@ class MakeHTML {
         messageTemplate = messageTemplate.replace("{authorProfilePicture}", message.authorProfile);
         messageTemplate = messageTemplate.replace("{roleColor}", message.color);
         messageTemplate = messageTemplate.replace("{messageAuthor}", message.username);
+        if (message.edited === "true") message.currentTime += " (EDITED)";
         messageTemplate = messageTemplate.replace("{messageDate}", message.currentTime);
         messageTemplate = messageTemplate.replace("{messageContent}", message.content);
 
