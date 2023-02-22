@@ -52,7 +52,7 @@ class Cronjob {
         /**
          * @param {string} uid - uuid of the cronjob
          */
-        if (!this.cronjobs[uid]) return console.error("Can't stop CronJob with uid " + uid + ": Cronjob not found");
+        if (!this.cronjobs[uid]) return console.error("<CRON> Can't stop CronJob with uid " + uid + ": Cronjob not found");
         clearTimeout(this.cronjobs[uid]);
     }
 
@@ -60,7 +60,7 @@ class Cronjob {
         /**
          * @param {string} uid - uuid of the cronjob
          */
-        if (!this.cronjobs[uid]) return console.error("Can't remove CronJob with uid " + uid + ": Cronjob not found");
+        if (!this.cronjobs[uid]) return console.error("<CRON> Can't remove CronJob with uid " + uid + ": Cronjob not found");
         clearTimeout(this.cronjobs[uid]);
         delete this.cronjobs[uid];
     }

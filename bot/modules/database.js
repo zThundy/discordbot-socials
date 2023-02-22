@@ -4,7 +4,7 @@ class SQL {
     constructor() {
         this.db = null;
         this.init();
-        console.log(">>> Database loaded");
+        console.log("<DATABASE> Database loaded");
     }
 
     init() {

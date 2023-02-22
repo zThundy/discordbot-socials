@@ -30,10 +30,9 @@ class Uploader {
                         const filedate = new Date(stats.atime);
                         // if the date is expired, delete the file
                         if (date > filedate) {
-                            
+                            console.log("<UPLOADER> File deleted: ", file);
+                            fs.unlinkSync(this.homePath + "/" + file);
                         }
-
-                        console.log("File created at:", stats.atime);
                     });
                 });
             });
@@ -45,15 +44,15 @@ class Uploader {
         this.app.get("/", (req, res) => {
             if (!req.query.key) return res.status(500).send().end();
             var filePath = this.homePath + "/" + req.query.key;
-            console.log("Trying downloading of file with key " + req.query.key + " Path: " + filePath);
+            console.log("<UPLOADER> Trying downloading of file with key " + req.query.key + " Path: " + filePath);
             if (fs.existsSync(filePath)) {
                 fs.readFile(filePath, (err, data) => {
                     if (err) return console.error(err);
-                    console.log('Found file! Sending to client');
+                    console.log('<UPLOADER> Found file! Sending to client');
                     res.send(data).end();
                 })
             } else {
-                console.error('No file exists, sending 404');
+                console.error('<UPLOADER> No file exists, sending 404');
                 res.status(404).send().end();
             }
         })
