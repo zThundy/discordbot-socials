@@ -4,12 +4,14 @@ const request = require("request");
 class Uploader {
     constructor(cron, config) {
         this.homePath = config.uploader.folder;
+        this.ip = config.uploader.httpIp;
+        this.port = config.uploader.httpPort;
 
         this.express = require("express");
         this.app = this.express();
 
-        this.app.listen(config.uploader.httpPort, () => {
-            console.log("<EXPRESS> Listening for web request on port " + config.uploader.httpPort);
+        this.app.listen(this.port, () => {
+            console.log("<EXPRESS> Listening for web request on port " + this.port);
         });
 
         // every 30 minutes, check creation date, if older than 20 days
@@ -65,7 +67,7 @@ class Uploader {
         request.get(url)
             .on('error', console.error)
             .pipe(fs.createWriteStream(this.homePath + "/" + uuid));
-        return "http://localhost:52320/?key=" + uuid;
+        return "http://" + this.ip + ":" + this.port + "/?key=" + uuid;
     }
 
     uuidv4() {
