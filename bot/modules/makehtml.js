@@ -2,7 +2,16 @@ const fs = require("fs");
 
 class MakeHTML {
     constructor() {
+        this.checkFolder();
         this.html = "";
+    }
+
+    checkFolder() {
+        // check if the folder exists
+        if (!fs.existsSync("./bot/data/tickets")) {
+            // if not, create it
+            fs.mkdirSync("./bot/data/tickets");
+        }
     }
 
     _prepareHtml(ticket) {
@@ -35,6 +44,17 @@ class MakeHTML {
                     <div class="message-content-container">
                         <div class="message-author"><span class="message-author-name" style="color: {roleColor}">{messageAuthor}</span> <span class="message-author-date">{messageDate}</span></div>
                         <div class="message-content"><img style="width: 300px;" src="{messageContent}" /></div>
+                    </div>
+                </div>
+            `
+        } else if (message.messageType === "video") {
+            messageTemplate = `
+            <div class="messages">
+                <div class="message-container">
+                    <div class="message-author-icon"><img src="{authorProfilePicture}" /></div>
+                    <div class="message-content-container">
+                        <div class="message-author"><span class="message-author-name" style="color: {roleColor}">{messageAuthor}</span> <span class="message-author-date">{messageDate}</span></div>
+                        <div class="message-content"><video style="width: 300px;" controls><source src="{messageContent}" type="video/mp4"></video></div>
                     </div>
                 </div>
             `

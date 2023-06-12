@@ -21,7 +21,7 @@ class BOT {
         this.cron = new Cronjob();
         if (this.config.twitch.enabled) this.twitch = new TwitchApi(this.config.twitch);
         if (this.config.twitter.enabled) this.twitter = new TwitterAPI(this.config.twitter);
-        this.uploader = new Uploader(this.cron).addListeners();
+        this.uploader = new Uploader(this.cron, this.config).addListeners();
         // init database and commands
         this.database.init().then(() => this._buildCommands()).catch(err => console.error(err));
     }
@@ -45,49 +45,11 @@ class BOT {
         } else if (event === "message" || event === "messageUpdate") {
             const message = args[0];
             if (message.author.bot) return;
-            if (message.channel.name.includes("ticket-") && message.channel.topic) {
-                message.guild.members.fetch(message.author.id)
-                    .then(m => {
-                        const dateFormat = message.createdAt;
-                        var date = ('0' + dateFormat.getDate()).slice(-2) +
-                            "/" + ('0' + (dateFormat.getMonth() + 1)).slice(-2) +
-                            "/" + dateFormat.getFullYear() +
-                            " " + ('0' + dateFormat.getHours()).slice(-2) +
-                            ":" + ('0' + dateFormat.getMinutes()).slice(-2) +
-                            ":" + ('0' + dateFormat.getSeconds()).slice(-2)
-
-                        
-                        var type = "text";
-                        // check if the message includes a URL with jpg, png or gif
-                        if ((/^https?:\/\/.+\jpg|jpeg|png|webp|avif|gif|svg$/i).test(message.content)) {
-                            type = "image";
-                            message.content = this.uploader.downloadPicture(message.content);
-                        }
-                        // check if the message has attachments, if so download them
-                        if (message.attachments.size > 0) {
-                            type = "image";
-                            message.attachments.forEach((attachment) => {
-                                message.content = this.uploader.downloadPicture(attachment.url);
-                            });
-                        }
-
-                        if (event === "messageUpdate") {
-                            this.database.updateTicketMessage(message.channel.topic, args[0].content, args[1].content).catch(e => console.error(e));
-                        } else {
-                            this.database.addTicketMessage(
-                                message.channel.topic, // ticketId
-                                message.content, // content of message
-                                message.author.username, // username of user
-                                message.author.avatarURL(), // avatar url of user
-                                date, // date of message creation
-                                m.displayHexColor, // hex color of user
-                                message.createdAt, // date of message creation in MS
-                                type, // type of message (text or image)
-                                "false" // if message has been edited
-                            ).catch(e => console.error(e));
-                        }
-                    }).catch(e => console.error(e));
-            }
+            // send a message event to all the commands
+            this.commands.forEach((command, string) => {
+                if (command.module.message)
+                    command.module.message(event, message, this.database, this.uploader, this.config);
+            });
         }
     }
 
@@ -95,7 +57,7 @@ class BOT {
         // create data folder if doesn't exist
         if (!fs.existsSync("./bot/data")) fs.mkdirSync("./bot/data");
         // create al data subfolders if they don't exist
-        if (!fs.existsSync("./bot/data/images")) fs.mkdirSync("./bot/data/images");
+        if (!fs.existsSync("./bot/data/attachments")) fs.mkdirSync("./bot/data/attachments");
         if (!fs.existsSync("./bot/data/tickets")) fs.mkdirSync("./bot/data/tickets");
     }
     

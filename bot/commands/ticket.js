@@ -264,8 +264,12 @@ async function interaction(interaction, database) {
                                     .addComponents(button);
 
                                 var string = "";
-                                for (var i in roles)
-                                    string += "<@&" + roles[i] + "> ";
+                                // check if roles has something inside
+                                if (roles.length === 0)
+                                    string = "Someone "
+                                else
+                                    for (var i in roles)
+                                        string += "<@&" + roles[i] + "> ";
                                 channel.send({
                                     content: "Hello, <@" + user.id + ">, thank you for opening a ticket.\n" + string + " will be with you shortly.\n\n**Please review the informations you give for this ticket**\n",
                                     embeds: [embed],
@@ -329,8 +333,80 @@ function uuid() {
     return uuid;
 }
 
+function message(event, message, database, uploader) {
+    if (message.channel.name.includes("ticket-") && message.channel.topic) {
+        message.guild.members.fetch(message.author.id)
+            .then(m => {
+                const dateFormat = message.createdAt;
+                var date = ('0' + dateFormat.getDate()).slice(-2) +
+                    "/" + ('0' + (dateFormat.getMonth() + 1)).slice(-2) +
+                    "/" + dateFormat.getFullYear() +
+                    " " + ('0' + dateFormat.getHours()).slice(-2) +
+                    ":" + ('0' + dateFormat.getMinutes()).slice(-2) +
+                    ":" + ('0' + dateFormat.getSeconds()).slice(-2)
+
+                
+                var type = "text";
+                const attachments = [];
+
+                if (message.attachments.size > 0) {
+                    message.attachments.forEach((attachment) => {
+                        if ((/^https?:\/\/.+\jpg|jpeg|png|webp|avif|gif|svg$/i).test(attachment.url)) {
+                            type = "image";
+                            attachments.push({
+                                file: uploader.downloadAttachment(attachment.url),
+                                type
+                            });
+                        }
+
+                        if ((/^(http(s)?:\/\/|www\.).*(\.mp4|\.mkv)$/gmi).test(attachment.url)) {
+                            type = "video";
+                            attachments.push({
+                                file: uploader.downloadAttachment(attachment.url),
+                                type
+                            });
+                        }
+                    });
+                }
+
+                if (event === "messageUpdate") {
+                    database.updateTicketMessage(message.channel.topic, args[0].content, args[1].content).catch(e => console.error(e));
+                } else {
+                    if (attachments.length > 0) {
+                        attachments.forEach((attachment) => {
+                            database.addTicketMessage(
+                                message.channel.topic, // ticketId
+                                attachment.file, // content of message
+                                message.author.username, // username of user
+                                message.author.avatarURL(), // avatar url of user
+                                date, // date of message creation
+                                m.displayHexColor, // hex color of user
+                                message.createdAt, // date of message creation in MS
+                                attachment.type, // type of message (text or image)
+                                "false" // if message has been edited
+                            ).catch(e => console.error(e));
+                        });
+                    } else {
+                        database.addTicketMessage(
+                            message.channel.topic, // ticketId
+                            message.content, // content of message
+                            message.author.username, // username of user
+                            message.author.avatarURL(), // avatar url of user
+                            date, // date of message creation
+                            m.displayHexColor, // hex color of user
+                            message.createdAt, // date of message creation in MS
+                            type, // type of message (text or image)
+                            "false" // if message has been edited
+                        ).catch(e => console.error(e));
+                    }
+                }
+            }).catch(e => console.error(e));
+    }
+}
+
 module.exports = {
     build,
     execute,
-    interaction
+    interaction,
+    message
 }

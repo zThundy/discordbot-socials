@@ -2,17 +2,14 @@ const fs = require("fs");
 const request = require("request");
 
 class Uploader {
-    constructor(cron) {
-        this.homePath = "./bot/data/images"
-        // create data folder if doesn't exist
-        if (!fs.existsSync(this.homePath)) fs.mkdirSync(this.homePath);
+    constructor(cron, config) {
+        this.homePath = config.uploader.folder;
 
         this.express = require("express");
         this.app = this.express();
 
-        this.PORT = "52320";
-        this.app.listen(this.PORT, () => {
-            console.log("<EXPRESS> Listening for web request on port " + this.PORT);
+        this.app.listen(config.uploader.httpPort, () => {
+            console.log("<EXPRESS> Listening for web request on port " + config.uploader.httpPort);
         });
 
         // every 30 minutes, check creation date, if older than 20 days
@@ -60,21 +57,21 @@ class Uploader {
         return this;
     }
 
-    downloadPicture(url) {
+    downloadAttachment(url) {
+        const uuid = this.uuidv4();
+        request.get(url)
+            .on('error', console.error)
+            .pipe(fs.createWriteStream(this.homePath + "/" + uuid));
+        return "http://localhost:52320/?key=" + uuid;
+    }
+
+    uuidv4() {
         var dt = new Date().getTime();
         var uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
             var r = (dt + Math.random()*16)%16 | 0;
             dt = Math.floor(dt/16);
             return (c=='x' ? r :(r&0x3|0x8)).toString(16);
         });
-
-        request.get(url)
-            .on('error', console.error)
-            .pipe(fs.createWriteStream("./bot/data/images/" + uuid));
-        return "http://localhost:52320/?key=" + uuid
-    }
-
-    uuid() {
         return uuid;
     }
 }
