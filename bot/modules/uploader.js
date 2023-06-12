@@ -42,7 +42,8 @@ class Uploader {
         // listen for get request for files in folder
         this.app.get("/", (req, res) => {
             // log ip address
-            console.log("<EXPRESS> Request from " + req.ip);
+            const ip = (req.headers['x-forwarded-for'] || req.connection.remoteAddress).replace("::ffff:", "");
+            console.log("<EXPRESS> Request from " + ip);
             // if no key is provided, return 500
             if (!req.query.key) return res.status(500).send().end();
             var filePath = this.homePath + "/" + req.query.key;
