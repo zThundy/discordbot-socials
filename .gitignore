@@ -160,4 +160,7 @@ dist
 .history
 .ionide
 
+# added data folder
+data/
+
 # End of https://www.toptal.com/developers/gitignore/api/node,visualstudiocode
