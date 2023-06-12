@@ -39,6 +39,9 @@ class Uploader {
     addListeners() {
         // listen for get request for files in folder
         this.app.get("/", (req, res) => {
+            // log ip address
+            console.log("<EXPRESS> Request from " + req.ip);
+            // if no key is provided, return 500
             if (!req.query.key) return res.status(500).send().end();
             var filePath = this.homePath + "/" + req.query.key;
             console.log("<UPLOADER> Trying downloading of file with key " + req.query.key + " Path: " + filePath);
