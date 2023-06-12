@@ -1,4 +1,7 @@
 const { Client, Events, GatewayIntentBits, Collection } = require('discord.js');
+const { Logger } = require("./bot/modules/logger.js");
+new Logger();
+
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
