@@ -21,11 +21,10 @@ class Logger {
     }
 
     checkFolder() {
+        // create main data folder (here since this module gets required first)
+        if (!fs.existsSync("./bot/data")) fs.mkdirSync("./bot/data");
         // check if folder exists
-        if (!fs.existsSync(path.join("./bot/data/logs"))) {
-            // create folder
-            fs.mkdirSync(path.join("./bot/data/logs"));
-        }
+        if (!fs.existsSync(path.join("./bot/data/logs"))) fs.mkdirSync(path.join("./bot/data/logs"));
     }
 
     checkFile() {
