@@ -5,6 +5,9 @@
         "clientId": "TWITCH_CLIENT_ID",
         "clientSecret": "TWITCH_CLIENT_SECRET"
     },
+    "tickets": {
+        "folder": "./bot/data/tickets"
+    },
     "uploader": {
         "folder": "./bot/data/attachments",
         "httpIp": "localhost",
