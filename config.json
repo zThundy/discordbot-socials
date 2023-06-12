@@ -1,10 +1,21 @@
 {
     "token": "DISCORD_TOKEN",
-    "twitch_clientId": "TWITCH_CLIENT_ID",
-    "twitch_clientSecret": "TWITCH_CLIENT_SECRET",
-    "twitter_apiKey": "TWITTER_API_KEY",
-    "twitter_apiSecret": "TWITTER_API_SECRET",
-    "twitter_bearerToken": "TWITTER_BEARER_TOKEN",
+    "twitch": {
+        "enabled": false,
+        "clientId": "TWITCH_CLIENT_ID",
+        "clientSecret": "TWITCH_CLIENT_SECRET"
+    },
+    "uploader": {
+        "folder": "./bot/data/attachments",
+        "httpIp": "localhost",
+        "httpPort": 52320
+    },
+    "twitter": {
+        "enabled": false,
+        "apiKey": "TWITTER_API_KEY",
+        "apiSecret": "TWITTER_API_SECRET",
+        "bearerToken": "TWITTER_BEARER_TOKEN"
+    },
     "bots": [
         {
             "guild_id": "GUILD_ID"
