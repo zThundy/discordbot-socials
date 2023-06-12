@@ -9,7 +9,7 @@ function build() {
     return command;
 }
 
-async function execute(interaction, database) {
+async function execute(interaction, _, _, config) {
     const guild = interaction.guild;
     const channel = interaction.channel;
 
@@ -27,14 +27,6 @@ async function execute(interaction, database) {
                 value: "You can use this command to create and manage a role picker.",
             },
             {
-                name: "📜 Twitch (/twitch)",
-                value: "You can use this feature to configure in the channel where it's executed, an automatic announcement that will be sent every time someone is live on twitch.",
-            },
-            {
-                name: "📜 Twitter (/twitter)",
-                value: "You can use this feature to configure in the channel where it's executed, an automatic announcement every time that someone sends a tweet on twitter. You can change the tag that will used to inform the users.",
-            },
-            {
                 name : "📜 Nickname (/nickname)",
                 value: "Use this command to change the nickname of the bot in the current guild."
             },
@@ -46,6 +38,20 @@ async function execute(interaction, database) {
         footer: {
             text: "Made with ❤️ by zThundy__"
         },
+    }
+
+    if (config.twitter.enabled) {
+        embed.fields.push({
+            name: "📜 Twitter (/twitter)",
+            value: "You can use this feature to configure in the channel where it's executed, an automatic announcement every time that someone sends a tweet on twitter. You can change the tag that will used to inform the users.",
+        });
+    }
+
+    if (config.twitch.enabled) {
+        embed.fields.push({
+            name: "📜 Twitch (/twitch)",
+            value: "You can use this feature to configure in the channel where it's executed, an automatic announcement that will be sent every time someone is live on twitch.",
+        });
     }
     
     interaction.reply({ embeds: [embed] });

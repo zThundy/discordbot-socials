@@ -2,6 +2,7 @@ const https = require("https");
 
 class TwitchApi {
     constructor(config, client) {
+        console.log(" > Initializing Twitch API");
         this.config = config;
         this.token = null;
         this.tokenExpires = null;
@@ -23,8 +24,8 @@ class TwitchApi {
                 } else {
                     console.log(" > Getting new token for Twitch");
                     const data = JSON.stringify({
-                        client_id: this.config.twitch_clientId,
-                        client_secret: this.config.twitch_clientSecret,
+                        client_id: this.config.clientId,
+                        client_secret: this.config.clientSecret,
                         grant_type: "client_credentials"
                     });
                     const options = {
@@ -69,7 +70,7 @@ class TwitchApi {
                     method: "GET",
                     headers: {
                         "Authorization": "Bearer " + token,
-                        "Client-Id": this.config.twitch_clientId
+                        "Client-Id": this.config.clientId
                     }
                 };
                 const req = https.request(options, res => {
@@ -102,7 +103,7 @@ class TwitchApi {
                     method: "GET",
                     headers: {
                         "Authorization": "Bearer " + token,
-                        "Client-Id": this.config.twitch_clientId
+                        "Client-Id": this.config.clientId
                     }
                 };
                 const req = https.request(options, res => {

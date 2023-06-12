@@ -1,7 +1,9 @@
 const { EmbedBuilder } = require("discord.js");
 
 class TwitterAPI {
-    constructor() {
+    constructor(config, client) {
+        console.log(" > Initializing Twitter API");
+        this.config = config;
         this.client = null;
     }
 
@@ -12,12 +14,11 @@ class TwitterAPI {
                 resolve(this.client);
             } else {
                 console.log(" > Getting new token for Twitter");
-                const config = require('../../config.json');
                 const Twitter = require('twitter');
                 const client = new Twitter({
-                    consumer_key: config.twitter_apiKey,
-                    consumer_secret: config.twitter_apiSecret,
-                    bearer_token: config.twitter_bearerToken
+                    consumer_key: this.config.apiKey,
+                    consumer_secret: this.config.apiSecret,
+                    bearer_token: this.config.bearerToken
                 });
                 this.client = client;
                 resolve(client);
