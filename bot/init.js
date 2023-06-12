@@ -7,12 +7,12 @@ const { TwitterAPI } = require("./modules/twitter.js");
 
 class BOT {
     constructor(client, guild) {
+        this.config = require("../config.json");
         // init data folders
         this._initDataFolders();
         // require logger module
         require("./modules/logger.js");
         // init the bot for current guild
-        this.config = require("../config.json");
         this.client = client;
         this.guild = guild;
         console.log(`>>> Bot initialized for guild ${guild.name}`);
@@ -57,8 +57,8 @@ class BOT {
         // create data folder if doesn't exist
         if (!fs.existsSync("./bot/data")) fs.mkdirSync("./bot/data");
         // create al data subfolders if they don't exist
-        if (!fs.existsSync("./bot/data/attachments")) fs.mkdirSync("./bot/data/attachments");
-        if (!fs.existsSync("./bot/data/tickets")) fs.mkdirSync("./bot/data/tickets");
+        if (!fs.existsSync(this.config.uploader.folder)) fs.mkdirSync(this.config.uploader.folder);
+        if (!fs.existsSync(this.config.tickets.folder)) fs.mkdirSync(this.config.tickets.folder);
     }
     
     _buildCommands() {

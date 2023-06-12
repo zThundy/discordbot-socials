@@ -143,7 +143,7 @@ function execute(interaction, database) {
 }
 
 // interaction command
-async function interaction(interaction, database) {
+async function interaction(interaction, database, _, config) {
     const guild = interaction.guild;
     const user = interaction.user;
 
@@ -299,7 +299,7 @@ async function interaction(interaction, database) {
                                 text: "Made with ❤️ by zThundy__"
                             },
                         };
-                        const file = new MakeHTML().writeHtmlFile(messages, {
+                        const file = new MakeHTML(config).writeHtmlFile(messages, {
                             channelName: channel.name,
                             title: ticket.ticketTitle,
                             description: ticket.ticketDescription,
@@ -308,7 +308,7 @@ async function interaction(interaction, database) {
                         });
                         if (ticketConfig && ticketConfig.transcriptChannel !== "0") {
                             guild.channels.cache.get(ticketConfig.transcriptChannel)
-                                .send({ files: ['./bot/data/tickets/' + file] });
+                                .send({ files: [config.tickets.folder + "/" + file] });
                         }
                         interaction.reply({ content: "", embeds: [embed] });
                         setTimeout(() => {

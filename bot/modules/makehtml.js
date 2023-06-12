@@ -1,17 +1,9 @@
 const fs = require("fs");
 
 class MakeHTML {
-    constructor() {
-        this.checkFolder();
+    constructor(config) {
+        this.config = config;
         this.html = "";
-    }
-
-    checkFolder() {
-        // check if the folder exists
-        if (!fs.existsSync("./bot/data/tickets")) {
-            // if not, create it
-            fs.mkdirSync("./bot/data/tickets");
-        }
     }
 
     _prepareHtml(ticket) {
@@ -82,7 +74,7 @@ class MakeHTML {
             });
 
         const filename =  ticket.ticketId + ".html";
-        fs.writeFileSync("./bot/data/tickets/" + filename, this.html);
+        fs.writeFileSync(this.config.tickets.folder + "/" + filename, this.html);
         return filename;
     }
 }
