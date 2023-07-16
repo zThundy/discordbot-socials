@@ -12,7 +12,8 @@ class SQL {
             try {
                 this.db = new sqlite.Database(`./bot/data/main.db`);
                 await this._run("CREATE TABLE IF NOT EXISTS twicth (guildId TEXT, channelId TEXT, channelName TEXT, discordChannel TEXT)");
-                await this._run("CREATE TABLE IF NOT EXISTS twitter (guildId TEXT, channelId TEXT, accountName TEXT, discordChannel TEXT, lastTweetId TEXT, roleId TEXT)");
+                await this._run("CREATE TABLE IF NOT EXISTS twitter (guildId TEXT, channelId TEXT, accountName TEXT, discordChannel TEXT, roleId TEXT)");
+                await this._run("CREATE TABLE IF NOT EXISTS twitterTweets (guildId TEXT, channelId TEXT, accountName TEXT, tweetId TEXT)");
                 await this._run("CREATE TABLE IF NOT EXISTS nicknames (guildId TEXT, nickname TEXT)");
                 await this._run("CREATE TABLE IF NOT EXISTS rolesSelector (guildId TEXT, selectorId TEXT, embed TEXT)");
                 await this._run("CREATE TABLE IF NOT EXISTS roles (guildId TEXT, selectorId TEXT, roleId TEXT, roleName TEXT)");
@@ -279,20 +280,30 @@ class SQL {
         this.db.run("DELETE FROM twicth WHERE guildId = ? AND channelId = ? AND channelName = ?", [guildId, channelId, channelName]);
     }
 
-    createTwitterAccount(guildId, channelId, accountName, discordChannel, lastTweetId, roleId) {
-        this.db.run("INSERT INTO twitter VALUES (?, ?, ?, ?, ?, ?)", [guildId, channelId, accountName, discordChannel, lastTweetId, roleId]);
+    createTwitterAccount(guildId, channelId, accountName, discordChannel, roleId) {
+        this.db.run("INSERT INTO twitter VALUES (?, ?, ?, ?, ?)", [guildId, channelId, accountName, discordChannel, roleId]);
     }
 
     deleteTwitterAccount(guildId, channelId, accountName) {
         this.db.run("DELETE FROM twitter WHERE guildId = ? AND channelId = ? AND accountName = ?", [guildId, channelId, accountName]);
     }
 
-    updateTweetLastId(guildId, accountName, lastTweetId) {
-        this.db.run("UPDATE twitter SET lastTweetId = ? WHERE guildId = ? AND accountName = ?", [lastTweetId, guildId, accountName]);
-    }
-
     updateTweetRoleId(guildId, accountName, roleId) {
         this.db.run("UPDATE twitter SET roleId = ? WHERE guildId = ? AND accountName = ?", [roleId, guildId, accountName]);
+    }
+
+    insertNewTweet(guildId, channelId, accountName, tweetId) {
+        this.db.run("INSERT INTO twitterTweets VALUES (?, ?, ?, ?)", [guildId, channelId, accountName, tweetId]);
+    }
+
+    isTweetAlreadySend(guildId, channelId, accountName, tweetId) {
+        return new Promise((resolve, reject) => {
+            this.db.get("SELECT * FROM twitterTweets WHERE guildId = ? AND channelId = ? AND accountName = ? AND tweetId = ?", [guildId, channelId, accountName, tweetId], (err, row) => {
+                if (err) reject(err);
+                if (row) resolve(true);
+                else resolve(false);
+            });
+        });
     }
 
     updateNickname(guildId, nickname) {

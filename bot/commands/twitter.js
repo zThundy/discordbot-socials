@@ -140,7 +140,7 @@ async function addtwitter(interaction, database) {
             });
         }
         database.createTwitterAccount(guild.id, channel.id, m.content, channel.name, null, null);
-        _addAccount({ guildId: guild.id, channelId: channel.id, accountName: m.content, channelName: channel.name, lastTweetId: null, roleId: null });
+        _addAccount({ guildId: guild.id, channelId: channel.id, accountName: m.content, channelName: channel.name, roleId: null });
     });
 }
 
@@ -177,7 +177,7 @@ async function interaction(interaction, database) {
     switch (action) {
         case 'listtwitter':
             interaction.reply({
-                content: `Account link: <https://twitter.com//${values[0]}>\nDiscord channel: <#${values[1]}>`,
+                content: `Account link: <https://twitter.com/${values[0]}>\nDiscord channel: <#${values[1]}>`,
                 ephemeral: true
             });
             break;
@@ -263,16 +263,14 @@ async function init(database, extra) {
 const accounts = {};
 function _addAccount(account) {
     var uid = _extra.cron.add(60 * 1000, (uid) => {
-        // debug and testing, remove when done
-        // account.lastTweetId = null;
-        // end of debug and testing
         if (!accounts[uid]) return _extra.cron.remove(uid);
 
         var _account = accounts[uid];
         _extra.twitter.getLastTweet(_account.accountName).then((tweets) => {
             if (tweets.length > 0) {
                 var lastTweet = tweets[0];
-                if (lastTweet.id != _account.lastTweetId) {
+                // yolo!!! query at every check cause i'm too lazy to do something good
+                if (!_extra.database.isTweetAlreadySend(_account.guildId, _account.channelId, _account.accountName, String(lastTweet.id))) {
                     _extra.client.channels.fetch(_account.channelId).then((channel) => {
                         const embeds = _extra.twitter.getEmbed(lastTweet);
                         if (_account.roleId) {
@@ -286,9 +284,9 @@ function _addAccount(account) {
                                 embeds
                             });
                         }
+                        // add the tweet to the database so we don't send it again
+                        _extra.database.insertNewTweet(_account.guildId, _account.channelId, _account.accountName, String(lastTweet.id));
                     });
-                    _account.lastTweetId = lastTweet.id;
-                    _extra.database.updateTweetLastId(_account.guildId, _account.accountName, String(lastTweet.id));
                 }
             }
         });
