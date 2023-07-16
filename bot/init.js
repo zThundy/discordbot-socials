@@ -1,12 +1,10 @@
 const SQL = require("./modules/database.js");
 const fs = require("fs");
 const { TwitchApi } = require("./modules/twitch.js");
-const { Cronjob } = require("./modules/cron.js");
-const { Uploader } = require("./modules/uploader.js");
 const { TwitterAPI } = require("./modules/twitter.js");
 
 class BOT {
-    constructor(client, guild) {
+    constructor(client, guild, uploader, cron) {
         this.config = require("../config.json");
         // init data folders
         this._initDataFolders();
@@ -18,10 +16,10 @@ class BOT {
         console.log(`>>> Bot initialized for guild ${guild.name}`);
         this.database = new SQL();
         this.commands = new Map();
-        this.cron = new Cronjob();
+        this.cron = cron;
+        this.uploader = uploader;
         if (this.config.twitch.enabled) this.twitch = new TwitchApi(this.config.twitch);
         if (this.config.twitter.enabled) this.twitter = new TwitterAPI(this.config.twitter);
-        this.uploader = new Uploader(this.cron, this.config).addListeners();
         // init database and commands
         this.database.init().then(() => this._buildCommands()).catch(err => console.error(err));
     }

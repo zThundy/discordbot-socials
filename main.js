@@ -2,6 +2,12 @@ const { Client, Events, GatewayIntentBits, Collection } = require('discord.js');
 const { Logger } = require("./bot/modules/logger.js");
 new Logger();
 
+// init uploader and cronjob
+const { Uploader } = require("./bot/modules/uploader.js");
+const { Cronjob } = require("./bot/modules/cron.js");
+const cron = new Cronjob();
+const uploader = new Uploader(cron, require("./config.json")).addListeners();
+
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -75,7 +81,7 @@ const initBot = (guild) => {
     // check if the bot is enabled for this guild
     const cfgBot = config.bots.filter(bot => bot.guild_id === guild.id)[0];
     if (cfgBot) {
-        bots[guild.id] = new BOT(client, guild);
+        bots[guild.id] = new BOT(client, guild, uploader, cron);
     } else {
         console.log(">>> Not initializing for guild " + guild.name + " (" + guild.id + ")");
         // send a message to the guild owner
