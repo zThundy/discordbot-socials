@@ -16,26 +16,27 @@ class Uploader {
 
         // every 30 minutes, check creation date, if older than 20 days
         // delete the file
-        cron.add(30 * 60 * 1000, (uid) => {
-            fs.readdir(this.homePath, (err, files) => {
-                files.forEach(file => {
-                    fs.stat(this.homePath + "/" + file, (error, stats) => {
-                        // in case of any error
-                        if (error) return console.log(error);
-                        
-                        // we will keep the files only for 1 month
-                        const date = new Date();
-                        date.setMonth(date.getMonth() - 1);
-                        const filedate = new Date(stats.atime);
-                        // if the date is expired, delete the file
-                        if (date > filedate) {
-                            console.log("<UPLOADER> File deleted: ", file);
-                            fs.unlinkSync(this.homePath + "/" + file);
-                        }
+        if (config.uploader.deleteFiles)
+            cron.add(30 * 60 * 1000, (uid) => {
+                fs.readdir(this.homePath, (err, files) => {
+                    files.forEach(file => {
+                        fs.stat(this.homePath + "/" + file, (error, stats) => {
+                            // in case of any error
+                            if (error) return console.log(error);
+                            
+                            // we will keep the files only for 1 month
+                            const date = new Date();
+                            date.setMonth(date.getMonth() - 1);
+                            const filedate = new Date(stats.atime);
+                            // if the date is expired, delete the file
+                            if (date > filedate) {
+                                console.log("<UPLOADER> File deleted: ", file);
+                                fs.unlinkSync(this.homePath + "/" + file);
+                            }
+                        });
                     });
                 });
-            });
-        }, true);
+            }, true);
     }
 
     addListeners() {

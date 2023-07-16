@@ -11,6 +11,7 @@
     "uploader": {
         "folder": "./bot/data/attachments",
         "httpIp": "localhost",
+        "deleteFiles": true,
         "httpPort": 52320
     },
     "twitter": {
