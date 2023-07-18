@@ -1,48 +1,89 @@
 const { EmbedBuilder } = require("discord.js");
+const https = require("https");
 
 class TwitterAPI {
     constructor(config, client) {
         console.log(" > Initializing Twitter API");
         this.config = config;
-        this.client = null;
+        this.accessToken = null;
+        this.getUserId("NoodleBaltimore")
+            .then(id => console.log(id))
+            .catch(e => console.error(e));
     }
 
     auth() {
         return new Promise((resolve, reject) => {
-            if (this.client) {
+            if (this.accessToken) {
                 console.log(" > Using cached token for Twitter");
-                resolve(this.client);
+                resolve(this.accessToken);
             } else {
                 console.log(" > Getting new token for Twitter");
-                const Twitter = require('twitter');
-                const client = new Twitter({
-                    consumer_key: this.config.apiKey,
-                    consumer_secret: this.config.apiSecret,
-                    bearer_token: this.config.bearerToken
+                const auth = Buffer.from(`${this.config.consumerKey}:${this.config.consumerSecret}`).toString("base64");
+                const options = {
+                    hostname: "api.twitter.com",
+                    port: 443,
+                    path: "/oauth2/token",
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+                        "Authorization": "Basic " + auth
+                    }
+                }
+                const req = https.request(options, (res) => {
+                    res.setEncoding('utf8');
+                    res.on('data', d => {
+                        const parsed = JSON.parse(d);
+                        this.accessToken = parsed.access_token;
+                        // console.log(parsed)
+                        resolve(parsed.access_token);
+                    });
                 });
-                this.client = client;
-                resolve(client);
+                req.on("error", error => {
+                    console.error(error);
+                    reject(error);
+                })
+                req.write("grant_type=client_credentials");
+                req.end();
             }
         });
     }
 
     getLastTweet(username) {
         return new Promise((resolve, reject) => {
-            this.auth().then((client) => {
-                client.get('statuses/user_timeline', {
-                    screen_name: username,
-                    count: 1,
-                    exclude_replies: true,
-                    include_rts: false,
-                    tweet_mode: 'extended'
-                }, (error, tweets, response) => {
-                    if (error) {
-                        console.error(error);
-                        reject(error);
-                    } else {
-                        resolve(tweets);
+            this.auth().then((accessToken) => {
+                
+            });
+        });
+    }
+
+    getUserId(username) {
+        return new Promise((resolve, reject) => {
+            this.auth().then((accessToken) => {
+                const options = {
+                    hostname: "api.twitter.com",
+                    port: 443,
+                    path: `/2/users/me`,
+                    method: "GET",
+                    headers: {
+                        "Authorization": "Bearer " + accessToken,
+                        "Content-Type": "application/json"
                     }
+                }
+                const req = https.request(options, (res) => {
+                    console.log('STATUS: ' + res.statusCode);
+                    console.log('HEADERS: ' + JSON.stringify(res.headers));
+                    res.setEncoding('utf8');
+                    res.on('data', d => {
+                        const parsed = JSON.parse(d);
+                        console.log(parsed)
+                        resolve(parsed.id_str);
+                    });
                 });
+                req.on("error", error => {
+                    console.error(error);
+                    reject(error);
+                });
+                req.end();
             });
         });
     }
