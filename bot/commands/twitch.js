@@ -54,6 +54,7 @@ async function _getAllTwitchChannels(interaction, database) {
 }
 
 async function execute(interaction, database) {
+    console.log(" > Twitch command executed");
     const guild = interaction.guild;
     const channel = interaction.channel;
     const args = interaction.options;
@@ -94,7 +95,6 @@ async function execute(interaction, database) {
 async function listtwich(interaction, database) {
     const guild = interaction.guild;
     const channel = interaction.channel;
-    console.log(" > Twitch command executed");
     const selectMenu = new SelectMenu()
         .setCustomId("listtwich;" + internalId)
         .setPlaceholder("List of twitch channels")
@@ -111,7 +111,6 @@ async function listtwich(interaction, database) {
 }
 
 async function removetwitch(interaction, database) {
-    console.log(" > Twitch command executed");
     const selectMenu = new SelectMenu()
         .setCustomId("removetwitch;" + internalId)
         .setPlaceholder("List of twitch channels")
@@ -168,6 +167,7 @@ async function interaction(interaction, database) {
 var _extra = null;
 async function init(database, extra) {
     _extra = extra;
+    _extra.database = database;
     const guild = extra.guild;
     database.getAllTwitchChannels(guild.id).then((channels) => {
         channels.forEach((channel) => {
@@ -178,7 +178,8 @@ async function init(database, extra) {
 }
 
 function _addChannel(channel) {
-    var uid = _extra.cron.add(5 * 60 * 1000, (uid) => {
+    var uid = _extra.cron.add(10 * 1000, (uid) => {
+    // var uid = _extra.cron.add(5 * 60 * 1000, (uid) => {
         if (!channels[uid]) return _extra.cron.remove(uid);
         
         _extra.twitch.checkStream(channels[uid].channelName).then((stream) => {
@@ -197,6 +198,8 @@ function _addChannel(channel) {
                         }
                     }).catch(console.error);
                 }).catch(console.error);
+                // update the twitch id if it's not the same or if it's not set
+                if (!channel.twitchId || channel.twitchId !== stream.user_id) _extra.database.updateTwitchId(channels[uid].guildId, channels[uid].channelName, stream.user_id);
             } else {
                 channels[uid].isLive = false;
             }
