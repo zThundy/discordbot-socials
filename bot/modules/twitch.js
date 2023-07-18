@@ -77,6 +77,39 @@ class TwitchApi {
                     res.on("data", d => {
                         const parsed = JSON.parse(d);
                         if (parsed.data.length > 0) {
+                            // console.log(parsed.data)
+                            resolve(parsed.data[0]);
+                        } else {
+                            resolve(null);
+                        }
+                    });
+                });
+                req.on("error", error => {
+                    console.error(error);
+                    reject(error);
+                });
+                req.end();
+            });
+        });
+    }
+
+    getUserId(name) {
+        return new Promise((resolve, reject) => {
+            this.getToken().then(token => {
+                const options = {
+                    hostname: "api.twitch.tv",
+                    port: 443,
+                    path: `/helix/users?login=${name}`,
+                    method: "GET",
+                    headers: {
+                        "Authorization": "Bearer " + token,
+                        "Client-Id": this.config.clientId
+                    }
+                }
+                const req = https.request(options, res => {
+                    res.on("data", d => {
+                        const parsed = JSON.parse(d);
+                        if (parsed.data.length > 0) {
                             resolve(parsed.data[0]);
                         } else {
                             resolve(null);
