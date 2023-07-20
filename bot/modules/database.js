@@ -76,6 +76,11 @@ class SQL {
         this.db.run("UPDATE twicth SET twitchId = ? WHERE guildId = ? AND channelName = ?", [twitchId, guildId, channelName]);
     }
 
+    updateTwitchClips(guildId, channelName, enableClips) {
+        console.log("<DATABASE> updateTwitchClips call");
+        this.db.run("UPDATE twicth SET enableClips = ? WHERE guildId = ? AND channelName = ?", [enableClips, guildId, channelName]);
+    }
+
     deleteTwitchChannel(guildId, channelId, channelName) {
         console.log("<DATABASE> deleteTwitchChannel call");
         this.db.run("DELETE FROM twicth WHERE guildId = ? AND channelId = ? AND channelName = ?", [guildId, channelId, channelName]);

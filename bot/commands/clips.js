@@ -3,21 +3,13 @@ const { SelectMenu } = require("./elements/dropdown.js");
 
 // create a random numberic id
 const internalId = "21425885691454";
+const channels = {};
 
 function build(guild) {
     const command = new SlashCommandBuilder();
     command.setName("clips");
     command.setDescription("Configure new twitch clips notifications");
     command.setDMPermission(false);
-    command.addStringOption((option) => {
-        option.setName('action')
-            .setDescription("Choose the action to perform")
-            .setRequired(true)
-            .addChoices({ name: '📜 List', value: 'listtwitchclips' })
-            .addChoices({ name: '✅ Add', value: 'addtwitchclips' })
-            .addChoices({ name: '❌ Remove', value: 'removetwitchclips' })
-        return option;
-    });
     command.setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator);
     command.id = internalId;
     command.execute = execute;
@@ -26,40 +18,56 @@ function build(guild) {
 
 async function execute(interaction, database) {
     console.log(" > Twitch clips command executed");
-    const guild = interaction.guild;
-    const channel = interaction.channel;
-    const args = interaction.options;
-    const action = args.getString('action');
-    switch (action) {
-        case 'listtwitchclips':
-            break;
-        case 'addtwitchclips':
-            const selectMenu = new SelectMenu()
-                .setCustomId("listtwich;" + internalId)
-                .setPlaceholder("List of twitch channels")
-                .setMinValues(1)
-                .setMaxValues(1)
-                .addOptions(await _getAllTwitchChannels(interaction, database))
-                .build();
-        
-            interaction.reply({
-                content: "Here's a list of all the twitch channels",
-                components: [selectMenu],
-                ephemeral: true
-            })
-            break;
-        case 'removetwitchclips':
-            break;
-        default:
-            await interaction.reply({ content: "Unknown action", ephemeral: true });
-            break;
-    }
+    // const guild = interaction.guild;
+    // const channel = interaction.channel;
+    // const args = interaction.options;
+    const selectMenu = new SelectMenu()
+        .setCustomId("addtwitchclips;" + internalId)
+        .setPlaceholder("List of twitch channels")
+        .setMinValues(1)
+        .setMaxValues(1)
+        .addOptions(await _getAllTwitchChannels(interaction, database))
+        .build();
+
+    interaction.reply({
+        content: "Here's a list of all the twitch channels where you can enable the clips notifications.\nSelect one from the list to enable the notifications in the current channel.",
+        components: [selectMenu],
+        ephemeral: true
+    });
 }
 
 async function interaction(interaction, database) {
+    const guild = interaction.guild;
+    // const channel = interaction.channel;
+    const customId = interaction.customId;
+    var values = interaction.values;
+    if (values[0].includes(";")) values = values[0].split(";");
+    // check if the action contains "none"
+    if (values[0] === "none") return interaction.reply({
+        content: "No channels added",
+        ephemeral: true
+    });
+    values[2] = Number(values[2]);
+    interaction.reply({
+        content: "Clips notifications are now " + (values[2] === 1 ? "disabled" : "enabled") + " for " + values[0],
+        components: [],
+        ephemeral: true
+    });
+    database.updateTwitchClips(guild.id, values[0], values[2] === 0 ? 1 : 0);
 }
 
+// this is bad but i don't give a fuck
+var _extra = null;
 async function init(database, extra) {
+    _extra = extra;
+    _extra.database = database;
+    const guild = extra.guild;
+    database.getAllTwitchChannels(guild.id).then((channels) => {
+        channels.forEach((channel) => {
+            // _addChannel(channel);
+        });
+    });
+    console.log(" > Twitch module initialized");
 }
 
 // internal functions
@@ -72,8 +80,8 @@ async function _getAllTwitchChannels(interaction, database) {
         res.forEach(entry => {
             channels.push({
                 label: entry.channelName,
-                value: entry.channelName + ";" + entry.channelId,
-                description: `Bound discord channel: ${entry.discordChannel}`,
+                value: entry.channelName + ";" + entry.channelId + ";" + entry.enableClips,
+                description: `Clips announcement is: ` + (entry.enableClips === 0 ? `disabled` : `enabled`),
                 emoji: "🌐"
             });
         });
@@ -82,7 +90,7 @@ async function _getAllTwitchChannels(interaction, database) {
         channels.push({
             label: "No channels added",
             value: "none",
-            description: "Add a channel to the list",
+            description: "Add a twitch channel to the list using the /twitch command",
             emoji: "❌",
             default: true
         });

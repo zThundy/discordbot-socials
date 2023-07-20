@@ -64,8 +64,9 @@ class BOT {
         const commandFiles = fs.readdirSync("./bot/commands").filter(file => file.endsWith(".js"));
         // loop through the files
         for (const file of commandFiles) {
-            if (file === "twitter.js" && this.config.twitter.enabled === false) continue;
-            if (file === "twitch.js" && this.config.twitch.enabled === false) continue;
+            if (file === "twitter.js" && !this.config.twitter.enabled) continue;
+            if (file === "twitch.js" && !this.config.twitch.enabled) continue;
+            if (file === "clips.js" && !this.config.twitch.enabled) continue;
             // require the command file
             const cmdFile = require(`./commands/${file}`);
             const command = cmdFile.build(this.guild);
