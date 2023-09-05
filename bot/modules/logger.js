@@ -13,7 +13,25 @@ class Logger {
         this.checkFile();
         this.createStream();
 
+        this.internalId = this.id();
+
         console.log("------------------------- LOG STARTED -------------------------");
+    }
+
+    // make id function where A are letters and 0 are numbers
+    // 0A00AA0000AAA
+    id() {
+        const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        const numbers = "0123456789";
+        let id = "";
+        for (let i = 0; i < 12; i++) {
+            if (i == 1 || i == 4) {
+                id += numbers.charAt(Math.floor(Math.random() * numbers.length));
+            } else {
+                id += letters.charAt(Math.floor(Math.random() * letters.length));
+            }
+        }
+        return id;
     }
 
     createStream() {
@@ -60,7 +78,9 @@ class Logger {
         });
         // add date to log as DD/MM/YYYY HH:MM:SS
         const date = new Date();
-        args.unshift(`[${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()} ${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}]`);
+        // check if date is single digit, if so, add a 0 before it
+        var dateString = `[${date.getDate() < 10 ? "0" + date.getDate() : date.getDate()}/${date.getMonth() + 1 < 10 ? "0" + (date.getMonth() + 1) : date.getMonth() + 1}/${date.getFullYear()} ${date.getHours() < 10 ? "0" + date.getHours() : date.getHours()}:${date.getMinutes() < 10 ? "0" + date.getMinutes() : date.getMinutes()}:${date.getSeconds() < 10 ? "0" + date.getSeconds() : date.getSeconds()}]`;
+        args.unshift(this.internalId + " | " + dateString);
         // create message
         const message = Array.from(args).join(" ") + "\r\n"
         // write to stdout
