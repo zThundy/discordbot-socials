@@ -1,8 +1,8 @@
-const { SelectMenuBuilder, ActionRowBuilder } = require('discord.js');
+const { StringSelectMenuBuilder, ActionRowBuilder } = require('discord.js');
 
 class SelectMenu {
     constructor() {
-        this.selectMenu = new SelectMenuBuilder();
+        this.selectMenu = new StringSelectMenuBuilder();
     }
 
     setCustomId(customId) {
