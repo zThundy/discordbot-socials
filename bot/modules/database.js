@@ -12,8 +12,8 @@ class SQL {
             try {
                 this.db = new sqlite.Database(`./bot/data/main.db`);
                 // twitch tables
-                await this._run("CREATE TABLE IF NOT EXISTS twicth (guildId TEXT, channelId TEXT, channelName TEXT, discordChannel TEXT, twitchId TEXT, enableClips INTEGER)");
-                await this._run("CREATE TABLE IF NOT EXISTS twicthClips (guildId TEXT, channelId TEXT, channelName TEXT, discordChannel TEXT, clipId TEXT)");
+                await this._run("CREATE TABLE IF NOT EXISTS twicth (guildId TEXT, channelId TEXT, channelName TEXT, discordChannel TEXT, twitchId TEXT, clipsChannelId TEXT, enableClips INTEGER)");
+                await this._run("CREATE TABLE IF NOT EXISTS twicthClips (guildId TEXT, channelId TEXT, channelName TEXT, discordChannel TEXT, clipId TEXT, data TEXT)");
                 // twitter tables
                 await this._run("CREATE TABLE IF NOT EXISTS twitter (guildId TEXT, channelId TEXT, accountName TEXT, discordChannel TEXT, roleId TEXT)");
                 await this._run("CREATE TABLE IF NOT EXISTS twitterTweets (guildId TEXT, channelId TEXT, accountName TEXT, tweetId TEXT)");
@@ -66,9 +66,34 @@ class SQL {
         });
     }
 
+    getChannelsWithEnabledClips(guildId) {
+        console.log("<DATABASE> getChannelsWithEnabledClips call");
+        return new Promise((resolve, reject) => {
+            this.db.all("SELECT * FROM twicth WHERE guildId = ? AND enableClips = 1", [guildId], (err, rows) => {
+                if (err) reject(err);
+                resolve(rows);
+            });
+        });
+    }
+
+    getChannelClips(guildId, channelId) {
+        console.log("<DATABASE> getChannelClips call");
+        return new Promise((resolve, reject) => {
+            this.db.all("SELECT * FROM twicthClips WHERE guildId = ? AND channelId = ?", [guildId, channelId], (err, rows) => {
+                if (err) reject(err);
+                resolve(rows);
+            });
+        });
+    }
+
+    setClipsChannelId(guildId, channelName, clipsChannelId) {
+        console.log("<DATABASE> setClipsChannelId call");
+        this.db.run("UPDATE twicth SET clipsChannelId = ? WHERE guildId = ? AND channelName = ?", [clipsChannelId, guildId, channelName]);
+    }
+
     createTwitchChannel(guildId, channelId, channelName, discordChannel) {
         console.log("<DATABASE> createTwitchChannel call");
-        this.db.run("INSERT INTO twicth VALUES (?, ?, ?, ?, ?, ?)", [guildId, channelId, channelName, discordChannel, 0, 0]);
+        this.db.run("INSERT INTO twicth VALUES (?, ?, ?, ?, ?, ?, ?)", [guildId, channelId, channelName, discordChannel, 0, 0, 0]);
     }
 
     updateTwitchId(guildId, channelName, twitchId) {
@@ -81,9 +106,19 @@ class SQL {
         this.db.run("UPDATE twicth SET enableClips = ? WHERE guildId = ? AND channelName = ?", [enableClips, guildId, channelName]);
     }
 
+    updateTwitchClipsChannel(guildId, channelName, clipsChannelId) {
+        console.log("<DATABASE> updateTwitchClipsChannel call");
+        this.db.run("UPDATE twicth SET clipsChannelId = ? WHERE guildId = ? AND channelName = ?", [clipsChannelId, guildId, channelName]);
+    }
+
     deleteTwitchChannel(guildId, channelId, channelName) {
         console.log("<DATABASE> deleteTwitchChannel call");
         this.db.run("DELETE FROM twicth WHERE guildId = ? AND channelId = ? AND channelName = ?", [guildId, channelId, channelName]);
+    }
+
+    addClip(guildId, channelId, channelName, discordChannel, clipId, data) {
+        console.log("<DATABASE> addClip call");
+        this.db.run("INSERT INTO twicthClips VALUES (?, ?, ?, ?, ?, ?)", [guildId, channelId, channelName, discordChannel, clipId, data]);
     }
 
     /**

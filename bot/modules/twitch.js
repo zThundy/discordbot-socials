@@ -125,14 +125,14 @@ class TwitchApi {
         });
     }
 
-    // get latest clip
-    getClip(name) {
+    // get latest clips
+    getClips(userId) {
         return new Promise((resolve, reject) => {
             this.getToken().then(token => {
                 const options = {
                     hostname: "api.twitch.tv",
                     port: 443,
-                    path: `/helix/clips?broadcaster_id=${name}`,
+                    path: `/helix/clips?broadcaster_id=${userId}`,
                     method: "GET",
                     headers: {
                         "Authorization": "Bearer " + token,
@@ -140,13 +140,15 @@ class TwitchApi {
                     }
                 };
                 const req = https.request(options, res => {
+                    var bits = "";
                     res.on("data", d => {
-                        const parsed = JSON.parse(d);
-                        if (parsed.data.length > 0) {
-                            resolve(parsed.data[0]);
-                        } else {
-                            resolve(null);
-                        }
+                        // const parsed = JSON.parse(d);
+                        bits += d;
+                    });
+
+                    res.on("end", () => {
+                        const parsed = JSON.parse(bits);
+                        resolve(parsed.data);
                     });
                 });
                 req.on("error", error => {
