@@ -20,6 +20,9 @@ class SQL {
                 // roles selector tables
                 await this._run("CREATE TABLE IF NOT EXISTS rolesSelector (guildId TEXT, selectorId TEXT, embed TEXT)");
                 await this._run("CREATE TABLE IF NOT EXISTS roles (guildId TEXT, selectorId TEXT, roleId TEXT, roleName TEXT)");
+                // multi roles selector tables
+                await this._run("CREATE TABLE IF NOT EXISTS multiRolesSelector (guildId TEXT, selectorId TEXT, embed TEXT, maxChoices INTEGER)");
+                await this._run("CREATE TABLE IF NOT EXISTS multiRoles (guildId TEXT, selectorId TEXT, roleId TEXT, roleName TEXT)");
                 // uploader tables
                 await this._run("CREATE TABLE IF NOT EXISTS pictures (guildId TEXT, uuid TEXT, url TEXT)");
                 // ticketing system tables
@@ -284,6 +287,8 @@ class SQL {
         return new Promise((resolve, reject) => {
             this.db.all("SELECT * FROM rolesSelector WHERE guildId = ?", [guildId], async (err, rows) => {
                 if (err) reject(err);
+                if (!rows) return resolve([]);
+                if (rows.length == 0) return resolve([]);
                 for (var i in rows) if (rows[i].embed) rows[i].embed = JSON.parse(rows[i].embed);
                 const roles = await this.getAllRoles(guildId);
                 if (!rows[0].roles) rows[0].roles = [];
@@ -330,14 +335,120 @@ class SQL {
         });
     }
 
-    updateTweetRoleId(guildId, accountName, roleId) {
-        console.log("<DATABASE> updateTweetRoleId call");
-        this.db.run("UPDATE twitter SET roleId = ? WHERE guildId = ? AND accountName = ?", [roleId, guildId, accountName]);
+    /**
+     * multi role selector section
+     */
+
+    addMultiRoleToSelector(guildId, selectorId, roleId, roleName) {
+        console.log("<DATABASE> addMultiRoleToSelector call");
+        return new Promise((resolve, reject) => {
+            this.db.run("INSERT INTO multiRoles (guildId, selectorId, roleId, roleName) VALUES (?, ?, ?, ?)", [guildId, selectorId, roleId, roleName], (err) => {
+                if (err) reject(err);
+                resolve();
+            });
+        });
+    }
+
+    checkIfMultiSelectorExists(guildId, selectorId) {
+        console.log("<DATABASE> checkIfMultiSelectorExists call");
+        return new Promise((resolve, reject) => {
+            this.db.all("SELECT * FROM multiRolesSelector WHERE guildId = ? AND selectorId = ?", [guildId, selectorId], (err, rows) => {
+                if (err) reject(err);
+                if (rows[0]) resolve(true);
+                else resolve(false);
+            });
+        });
+    }
+
+    createMultiSelecor(guildId, selectorId, embed, maxChoices) {
+        console.log("<DATABASE> createMultiSelecor call");
+        return new Promise((resolve, reject) => {
+            this.db.run("INSERT INTO multiRolesSelector (guildId, selectorId, embed, maxChoices) VALUES (?, ?, ?, ?)", [guildId, selectorId, embed, maxChoices], (err) => {
+                if (err) reject(err);
+                resolve();
+            });
+        });
+    }
+
+    getAllMultiRoles(guildId) {
+        console.log("<DATABASE> getAllMultiRoles call");
+        return new Promise((resolve, reject) => {
+            this.db.all("SELECT * FROM multiRoles WHERE guildId = ?", [guildId], (err, rows) => {
+                if (err) reject(err);
+                resolve(rows);
+            });
+        });
+    }
+    
+    // create a function that return roles and rolesSelector merged in one single array using selectorId as key
+    getAllMultiRolesAndSelectors(guildId) {
+        console.log("<DATABASE> getAllMultiRolesAndSelectors call");
+        return new Promise((resolve, reject) => {
+            this.db.all("SELECT * FROM multiRolesSelector WHERE guildId = ?", [guildId], async (err, rows) => {
+                if (err) reject(err);
+                if (!rows) return resolve([]);
+                if (rows.length == 0) return resolve([]);
+                for (var i in rows) if (rows[i].embed) rows[i].embed = JSON.parse(rows[i].embed);
+                const roles = await this.getAllMultiRoles(guildId);
+                if (!rows[0].roles) rows[0].roles = [];
+                for (var i in roles) rows[0].roles.push({ id: roles[i].roleId, name: roles[i].roleName });
+                resolve(rows);
+            });
+        });   
+    }
+
+    getEmbedFromMultiSelectorId(guildId, selectorId) {
+        console.log("<DATABASE> getEmbedFromMultiSelectorId call");
+        return new Promise((resolve, reject) => {
+            this.db.all("SELECT embed FROM multiRolesSelector WHERE guildId = ? AND selectorId = ?", [guildId, selectorId], (err, rows) => {
+                if (err) reject(err);
+                if (!rows && !rows[0]) reject("No embed found", guildId, selectorId);
+                if (!rows[0].embed) reject("No embed found", guildId, selectorId);
+                // parse and then return it
+                if (rows[0].embed) rows[0].embed = JSON.parse(rows[0].embed);
+                resolve(rows[0].embed);
+            });
+        });
+    }
+
+    getMultiRolesFromSelectorId(guildId, selectorId) {
+        console.log("<DATABASE> getMultiRolesFromSelectorId call");
+        return new Promise((resolve, reject) => {
+            this.db.all("SELECT * FROM multiRoles WHERE guildId = ? AND selectorId = ?", [guildId, selectorId], (err, rows) => {
+                if (err) reject(err);
+                const result = { roles: rows, maxChoices: 0 };
+                this.db.all("SELECT * FROM multiRolesSelector WHERE guildId = ? AND selectorId = ?", [guildId, selectorId], (err, rows) => {
+                    if (err) reject(err);
+                    if (!rows && !rows[0]) reject("No selector found");
+                    if (!rows[0].maxChoices) reject("No maxChoices found");
+                    result.maxChoices = rows[0].maxChoices;
+                    resolve(result);
+                });
+            });
+        });
+    }
+
+    deleteMultiSelector(guildId, selectorId) {
+        console.log("<DATABASE> deleteMultiSelector call");
+        return new Promise((resolve, reject) => {
+            this.db.run("DELETE FROM multiRolesSelector WHERE guildId = ? AND selectorId = ?", [guildId, selectorId], (err) => {
+                if (err) reject(err);
+                this.db.run("DELETE FROM multiRoles WHERE guildId = ? AND selectorId = ?", [guildId, selectorId], (err) => {
+                    if (err) reject(err);
+                    resolve();
+                });
+            });
+        });
     }
 
     /**
      * twitter section
      */
+
+    updateTweetRoleId(guildId, accountName, roleId) {
+        console.log("<DATABASE> updateTweetRoleId call");
+        this.db.run("UPDATE twitter SET roleId = ? WHERE guildId = ? AND accountName = ?", [roleId, guildId, accountName]);
+    }
 
     getAllTwitterAccounts(guildId) {
         console.log("<DATABASE> getAllTwitterAccounts call");

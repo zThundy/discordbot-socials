@@ -1,4 +1,6 @@
 const { SlashCommandBuilder } = require("discord.js");
+const { Timeout } = require("../modules/timeout.js");
+const timeout = new Timeout();
 const config = require("../../config.json");
 
 function build() {
@@ -50,10 +52,11 @@ const _getFields = (client) => {
     });
 }
 
-
 async function execute(interaction, database, client) {
-    const guild = interaction.guild;
-    const channel = interaction.channel;
+    const user = interaction.user.id;
+    if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", ephemeral: true });
+    // add timeout to the user
+    timeout.addTimeout(user);
 
     var description = "This bot has been completly developed and tested by <@341296805646041100> [zThundy__#2456]\n" +
                       "If you want to check the code please visit the [GitHub repository](https://github.com/zThundy/discordbot-socials)\n" +

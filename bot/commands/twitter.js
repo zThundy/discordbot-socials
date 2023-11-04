@@ -1,5 +1,7 @@
 const { SlashCommandBuilder, PermissionsBitField } = require('discord.js');
 const { SelectMenu } = require('./elements/dropdown.js');
+const { Timeout } = require("../modules/timeout.js");
+const timeout = new Timeout();
 
 const internalId = "554871236547822";
 
@@ -53,8 +55,11 @@ async function _getAllTwitterAccounts(interaction, database) {
 }
 
 async function execute(interaction, database) {
-    const guild = interaction.guild;
-    const channel = interaction.channel;
+    const userId = interaction.user.id;
+    if (timeout.checkTimeout(userId)) return interaction.reply({ content: "You're doing that too fast", ephemeral: true });
+    // add timeout to the user
+    timeout.addTimeout(userId);
+    
     const args = interaction.options;
     const action = args.getString('action');
     switch (action) {
@@ -162,6 +167,11 @@ async function changetagtwitter(interaction, database) {
 }
 
 async function interaction(interaction, database) {
+    const userId = interaction.user.id;
+    if (timeout.checkTimeout(userId)) return interaction.reply({ content: "You're doing that too fast", ephemeral: true });
+    // add timeout to the user
+    timeout.addTimeout(userId);
+
     console.log(" > Twitter interaction received");
     const guild = interaction.guild;
     const channel = interaction.channel;

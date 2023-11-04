@@ -2,6 +2,8 @@ const { SlashCommandBuilder, PermissionsBitField, ActionRowBuilder, ChannelType,
 const { Modal } = require("./elements/modal.js");
 const { Button } = require("./elements/button.js");
 const { MakeHTML } = require("../modules/makehtml.js");
+const { Timeout } = require("../modules/timeout.js");
+const timeout = new Timeout();
 
 // create a random numberic id
 const internalId = "145269985412354";
@@ -30,6 +32,11 @@ function build(guild) {
 }
 
 function execute(interaction, database) {
+    const user = interaction.user.id;
+    if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", ephemeral: true });
+    // add timeout to the user
+    timeout.addTimeout(user);
+
     const args = interaction.options;
     const channel = interaction.channel;
     const guild = interaction.guild;
@@ -56,12 +63,9 @@ function execute(interaction, database) {
                             .setStyle("secondary")
                             .build();
             
-                        const row = new ActionRowBuilder()
-                            .addComponents(button);
-            
                         interaction.reply({
                             content: "",
-                            components: [row],
+                            components: [button],
                             embeds: [embed]
                         }).catch(console.error);
                     } else {
@@ -144,6 +148,11 @@ function execute(interaction, database) {
 
 // interaction command
 async function interaction(interaction, database, _, config) {
+    const userId = interaction.user.id;
+    if (timeout.checkTimeout(userId)) return interaction.reply({ content: "You're doing that too fast", ephemeral: true });
+    // add timeout to the user
+    timeout.addTimeout(userId);
+
     const guild = interaction.guild;
     const user = interaction.user;
 
@@ -259,9 +268,6 @@ async function interaction(interaction, database, _, config) {
                                     .setEmoji("🔒")
                                     .setStyle("danger")
                                     .build();
-                    
-                                const row = new ActionRowBuilder()
-                                    .addComponents(button);
 
                                 var string = "";
                                 // check if roles has something inside
@@ -273,7 +279,7 @@ async function interaction(interaction, database, _, config) {
                                 channel.send({
                                     content: "Hello, <@" + user.id + ">, thank you for opening a ticket.\n" + string + " will be with you shortly.\n\n**Please review the informations you give for this ticket**\n",
                                     embeds: [embed],
-                                    components: [row]
+                                    components: [button]
                                 }).catch(console.error);
                             }).catch(console.error);
                         }).catch(console.error);

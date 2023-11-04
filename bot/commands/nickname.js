@@ -1,4 +1,6 @@
 const { SlashCommandBuilder, PermissionsBitField } = require("discord.js");
+const { Timeout } = require("../modules/timeout.js");
+const timeout = new Timeout();
 
 const internalId = "472513600254789";
 
@@ -20,8 +22,12 @@ function build(guild) {
 }
 
 async function execute(interaction, database) {
+    const user = interaction.user.id;
+    if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", ephemeral: true });
+    // add timeout to the user
+    timeout.addTimeout(user);
+    
     const guild = interaction.guild;
-    const channel = interaction.channel;
     const args = interaction.options;
     const nickname = args.getString('nickname');
 

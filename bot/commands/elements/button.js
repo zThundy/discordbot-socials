@@ -50,10 +50,9 @@ class Button {
     }
 
     build() {
-        if (!this.button.id) {
-            throw new Error("CustomId is required");
-        }
-        return this.button;
+        const row = new ActionRowBuilder()
+            .addComponents(this.button);
+        return row;
     }
 }
 

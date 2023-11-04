@@ -1,5 +1,7 @@
 const { SlashCommandBuilder, PermissionsBitField } = require("discord.js");
 const { SelectMenu } = require("./elements/dropdown.js");
+const { Timeout } = require("../modules/timeout.js");
+const timeout = new Timeout();
 
 // create a random numberic id
 const internalId = "451258854652154";
@@ -54,6 +56,11 @@ async function _getAllTwitchChannels(interaction, database) {
 }
 
 async function execute(interaction, database) {
+    const userId = interaction.user.id;
+    if (timeout.checkTimeout(userId)) return interaction.reply({ content: "You're doing that too fast", ephemeral: true });
+    // add timeout to the user
+    timeout.addTimeout(userId);
+
     console.log(" > Twitch command executed");
     const guild = interaction.guild;
     const channel = interaction.channel;
@@ -127,6 +134,11 @@ async function removetwitch(interaction, database) {
 }
 
 async function interaction(interaction, database) {
+    const userId = interaction.user.id;
+    if (timeout.checkTimeout(userId)) return interaction.reply({ content: "You're doing that too fast", ephemeral: true });
+    // add timeout to the user
+    timeout.addTimeout(userId);
+
     console.log(" > Twitch interaction received");
     const guild = interaction.guild;
     // const channel = interaction.channel;

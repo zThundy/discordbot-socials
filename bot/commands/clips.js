@@ -1,5 +1,7 @@
 const { SlashCommandBuilder, PermissionsBitField } = require("discord.js");
 const { SelectMenu } = require("./elements/dropdown.js");
+const { Timeout } = require("../modules/timeout.js");
+const timeout = new Timeout();
 
 // create a random numberic id
 const internalId = "21425885691454";
@@ -25,9 +27,12 @@ function build(guild) {
 }
 
 async function execute(interaction, database) {
+    const user = interaction.user.id;
+    if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", ephemeral: true });
+    // add timeout to the user
+    timeout.addTimeout(user);
+
     console.log(" > Twitch clips command executed");
-    const guild = interaction.guild;
-    const channel = interaction.channel;
     const args = interaction.options;
     const action = args.getString('action');
 
@@ -76,6 +81,11 @@ async function setchannelclips(interaction, database) {
 }
 
 async function interaction(interaction, database) {
+    const user = interaction.user.id;
+    if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", ephemeral: true });
+    // add timeout to the user
+    timeout.addTimeout(user);
+    
     console.log(" > Twitch clips interaction received");
     const guild = interaction.guild;
     // const channel = interaction.channel;

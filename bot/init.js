@@ -2,6 +2,7 @@ const SQL = require("./modules/database.js");
 const fs = require("fs");
 const { TwitchApi } = require("./modules/twitch.js");
 const { TwitterAPI } = require("./modules/twitter.js");
+const { Timeout } = require("./modules/timeout.js");
 
 class BOT {
     constructor(client, guild, uploader, cron) {
@@ -16,6 +17,7 @@ class BOT {
         console.log(`>>> Bot initialized for guild ${guild.name}`);
         this.database = new SQL();
         this.commands = new Map();
+        this.timeout = new Timeout();
         this.cron = cron;
         this.uploader = uploader;
         if (this.config.twitch.enabled) this.twitch = new TwitchApi(this.config.twitch);

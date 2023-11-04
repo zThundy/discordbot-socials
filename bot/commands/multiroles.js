@@ -1,15 +1,16 @@
 const { SlashCommandBuilder, PermissionsBitField } = require("discord.js");
 const { SelectMenu } = require("./elements/dropdown.js");
+const { Button } = require("./elements/button.js");
 const { Timeout } = require("../modules/timeout.js");
 const timeout = new Timeout();
 
 // create a random numberic id
-const internalId = "924668753215564";
+const internalId = "924668547215564";
 
 function build(guild) {
     const command = new SlashCommandBuilder();
-    command.setName("roles");
-    command.setDescription("Start the creation of a role selector");
+    command.setName("multiroles");
+    command.setDescription("Start the creation of a multi role selector");
     command.setDMPermission(false);
     command.addStringOption((option) => {
         option.setName('action')
@@ -52,7 +53,7 @@ async function cancel(interaction, database) {
     const user = interaction.user;
 
     // get all selectors
-    database.getAllRolesAndSelectors(guild.id).then((rows) => {
+    database.getAllMultiRolesAndSelectors(guild.id).then((rows) => {
         const options = [];
         for (var i in rows) {
             var description = rows[i].embed.description;
@@ -74,7 +75,7 @@ async function cancel(interaction, database) {
         }
 
         const selectMenu = new SelectMenu()
-            .setCustomId("deleteroleselector;" + internalId)
+            .setCustomId("deletemultiroleselector;" + internalId)
             .setPlaceholder("Pick a role selector to delete it")
             .setMinValues(1)
             .setMaxValues(1)
@@ -116,30 +117,41 @@ async function add(interaction, database) {
         }
 
         // collect the title of the selector
-        if (!data.title && !data.description) {
+        if (!data.title && !data.description && !data.maxChoices) {
             data.title = m.content;
             channel.send("Please type the description of the selector\n\nIf you want to cancel the operation, send **cancel**");
             return;
         }
 
         // collect the description of the selector
-        if (data.title && !data.description) {
+        if (data.title && !data.description && !data.maxChoices) {
             data.description = m.content;
+            channel.send("Please type the maximum number of roles that a user can select\n\nIf you want to cancel the operation, send **cancel**");
+            return;
+        }
+
+        // collect the max number of roles that a user can select
+        if (data.title && data.description && !data.maxChoices) {
+            if (isNaN(m.content)) {
+                m.reply("Please type a valid number");
+                return;
+            }
+            data.maxChoices = parseInt(m.content);
             // create the selector
-            database.createSelecor(guild.id, selectorId, JSON.stringify({
+            database.createMultiSelecor(guild.id, selectorId, JSON.stringify({
                 title: data.title,
                 description: data.description,
                 color: 0x00FF00,
                 footer: {
                     text: "Made with ❤️ by zThundy__"
                 }
-            }));
+            }), data.maxChoices);
             channel.send("Please send the tag to the role you want to add to the selector.\n\nIf you want to cancel the operation, send **cancel**\nIf you are done adding roles, send **done**");
             return;
         }
         
         // collect all the roles
-        if (data.title && data.description) {
+        if (data.title && data.description && data.maxChoices) {
             if (!data.collected) data.collected = [];
             if (m.content.toLowerCase() === "done") {
                 // send the selector
@@ -154,7 +166,7 @@ async function add(interaction, database) {
             }
             if (role) {
                 // add the role to the selector
-                database.addRoleToSelector(guild.id, selectorId, role.id, role.name)
+                database.addMultiRoleToSelector(guild.id, selectorId, role.id, role.name)
                 m.reply("Role added to the selector");
                 data.collected.push(role);
             } else {
@@ -170,7 +182,9 @@ async function create(interaction, database) {
     const user = interaction.user;
 
     // get all selectors
-    database.getAllRolesAndSelectors(guild.id).then((rows) => {
+    database.getAllMultiRolesAndSelectors(guild.id).then((rows) => {
+        console.log(rows);
+
         const options = [];
         for (var i in rows) {
             var description = rows[i].embed.description;
@@ -192,7 +206,7 @@ async function create(interaction, database) {
         }
 
         const selectMenu = new SelectMenu()
-            .setCustomId("roleselector;" + internalId)
+            .setCustomId("multiroleselector;" + internalId)
             .setPlaceholder("Pick a role selector to send in the current channel")
             .setMinValues(1)
             .setMaxValues(1)
@@ -219,104 +233,118 @@ async function interaction(interaction, database) {
     // get the action to perform
     const action = interaction.customId.split(";")[0];
     switch (action) {
-        case "roleselector":
-            roleselector(interaction, database);
+        case "multiroleselector":
+            multiroleselector(interaction, database);
             break;
-        case "roles":
-            roles(interaction, database);
+        case "multiroles":
+            multiroles(interaction, database);
             break;
-        case "deleteroleselector":
-            deleteroleselector(interaction, database);
+        case "deletemultiroleselector":
+            deletemultiroleselector(interaction, database);
+            break;
+        case "multirolesbutton":
+            multirolesbutton(interaction, database);
             break;
     }
 }
 
-async function deleteroleselector(interaction, database) {
+async function deletemultiroleselector(interaction, database) {
     const guild = interaction.guild;
     // get the selector id from the interaction value
     const selectorId = interaction.values[0];
     // defer interaction
     interaction.reply({ content: "Deleting selector...", ephemeral: true }).then(() => {
-        database.deleteSelector(guild.id, selectorId).then(() => {
+        database.deleteMultiSelector(guild.id, selectorId).then(() => {
             interaction.editReply({ content: "Selector deleted", components: [], ephemeral: true });
         }).catch(console.error);
     }).catch(console.error);
 }
 
-async function roles(interaction, database) {
+async function multirolesbutton(interaction, database) {
+    const guild = interaction.guild;
+    // get the selector id from the interaction value
+    console.log(interaction.customId)
+    const selectorId = interaction.customId.split(";")[2]
+    // defer interaction
+    interaction.reply({ content: "Removing all multiroles...", ephemeral: true }).then(() => {
+        database.getMultiRolesFromSelectorId(guild.id, selectorId).then(async (result) => {
+            for (var i in result.roles) await interaction.member.roles.remove(result.roles[i].roleId);
+            interaction.editReply({ content: "All multiroles removed", ephemeral: true });
+        }).catch(console.error);
+    }).catch(console.error);
+}
+
+async function multiroles(interaction, database) {
     const guild = interaction.guild;
     const user = interaction.user;
     console.log(` > Adding role to ${user.username} (${user.id})`);
     // get the role id from the interaction value
-    const roleId = interaction.values[0].split(";")[0];
+
+    interaction.reply({ content: "Adding role...", ephemeral: true }).catch(console.error);
     const selectorId = interaction.values[0].split(";")[1];
-    database.checkIfSelectorExists(guild.id, selectorId).then((exists) => {
+
+    database.checkIfMultiSelectorExists(guild.id, selectorId).then((exists) => {
         if (!exists) {
             interaction.reply({ content: "This selector doesn't exist anymore", ephemeral: true });
             return;
         }
 
-        // fetch the role in the guild
-        if (roleId === "none")
-            return interaction.reply({ content: "Removing all roles...", ephemeral: true }).then(() => {
-                database.getRolesFromSelectorId(guild.id, selectorId).then(async (rows) => {
-                    for (var i in rows) await interaction.member.roles.remove(rows[i].roleId);
-                    interaction.editReply({ content: "All roles removed", ephemeral: true });
-                }).catch(console.error);
-            }).catch(console.error);
+        interaction.values.forEach((value) => {
+            const roleId = value.split(";")[0];
 
-        guild.roles.fetch(roleId).then((role) => {
-            database.getRolesFromSelectorId(guild.id, selectorId).then((rows) => {
-                interaction.reply({ content: "Adding role...", ephemeral: true }).then(async () => {
+            guild.roles.fetch(roleId).then((role) => {
+                database.getMultiRolesFromSelectorId(guild.id, selectorId).then(async (result) => {
                     // remove all the roles from the selector
-                    for (var i in rows) await interaction.member.roles.remove(rows[i].roleId);
+                    for (var i in result.roles) await interaction.member.roles.remove(result.roles[i].roleId);
                     // add the role
                     interaction.member.roles.add(role).catch(console.error);
+                    // edit interaction reply
+                    interaction.editReply({ content: `Role ${role.name} added`, ephemeral: true });
                     // edit the reply to the interaction
-                    interaction.editReply({ content: "Role added", ephemeral: true });
                 }).catch(console.error);
             }).catch(console.error);
-        }).catch(console.error);
+        });
     }).catch(console.error);
 }
 
-async function roleselector(interaction, database) {
+async function multiroleselector(interaction, database) {
     const guild = interaction.guild;
     const selectorId = interaction.values[0];
 
     // get the selector and the roles
-    database.getRolesFromSelectorId(guild.id, selectorId).then(async (roles) => {
-        if (roles.length == 0)
+    database.getMultiRolesFromSelectorId(guild.id, selectorId).then(async (result) => {
+        if (result.roles.length == 0)
             return interaction.reply({ content: "There has been an error during the creation of this selector\nPlease delete it and create it again.", ephemeral: true });
-        const selectors = [{
-            label: "No role selected",
-            value: "none;" + selectorId,
-            description: "Select this to remove all the roles",
-            emoji: "❌",
-            default: true
-        }];
-        for (var i in roles) {
+        const selectors = [];
+        for (var i in result.roles) {
             selectors.push({
-                label: roles[i].roleName,
-                value: roles[i].roleId + ";" + selectorId,
-                description: `Select this to get the role ${roles[i].roleName}`,
+                label: result.roles[i].roleName,
+                value: result.roles[i].roleId + ";" + selectorId,
+                description: `Select this to get the role ${result.roles[i].roleName}`,
                 emoji: "⏺"
             });
         }
 
         // create the select menu
         const selectMenu = new SelectMenu()
-            .setCustomId("roles;" + internalId)
+            .setCustomId("multiroles;" + internalId)
             .setPlaceholder("Select a role...")
             .setMinValues(1)
-            .setMaxValues(1)
+            .setMaxValues(result.maxChoices)
             .addOptions(selectors)
+            .build();
+
+        const button = new Button()
+            .setStyle("danger")
+            .setCustomId("multirolesbutton;" + internalId + ";" + selectorId)
+            .setLabel("Remove all")
+            .setEmoji("❌")
             .build();
 
         // send the message
         interaction.reply({
-            embeds: [await database.getEmbedFromSelectorId(guild.id, selectorId)],
-            components: [selectMenu]
+            embeds: [await database.getEmbedFromMultiSelectorId(guild.id, selectorId)],
+            components: [selectMenu, button]
         }).catch((err) => {
             console.error(err);
         });

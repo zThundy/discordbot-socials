@@ -1,4 +1,6 @@
 const { SlashCommandBuilder } = require("discord.js");
+const { Timeout } = require("../modules/timeout.js");
+const timeout = new Timeout();
 
 function build() {
     const command = new SlashCommandBuilder();
@@ -10,8 +12,10 @@ function build() {
 }
 
 async function execute(interaction, _, _, config) {
-    const guild = interaction.guild;
-    const channel = interaction.channel;
+    const user = interaction.user.id;
+    if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", ephemeral: true });
+    // add timeout to the user
+    timeout.addTimeout(user);
 
     const embed = {
         title: "Help",
@@ -27,12 +31,20 @@ async function execute(interaction, _, _, config) {
                 value: "You can use this command to create and manage a role picker.",
             },
             {
+                name: "📜 Multi roles (/multiroles)",
+                value: "You can use this command to create and manage a multi role picker."
+            },
+            {
                 name : "📜 Nickname (/nickname)",
                 value: "Use this command to change the nickname of the bot in the current guild."
             },
             {
                 name : "📜 Info (/info)",
                 value: "Use this command to get information about the bot."
+            },
+            {
+                name: "📜 Help (/help)",
+                value: "Use this command to get help about the bot."
             },
         ],
         footer: {
