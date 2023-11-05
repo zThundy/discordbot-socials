@@ -273,7 +273,6 @@ async function multiroles(interaction, database) {
     console.log(` > Adding role to ${user.username} (${user.id})`);
     // get the role id from the interaction value
 
-    interaction.reply({ content: "Adding role...", ephemeral: true }).catch(console.error);
     const selectorId = interaction.values[0].split(";")[1];
 
     database.checkIfMultiSelectorExists(guild.id, selectorId).then((exists) => {
@@ -291,17 +290,16 @@ async function multiroles(interaction, database) {
                 }
             }
 
-            interaction.values.forEach((value) => {
-                const roleId = value.split(";")[0];
-                guild.roles.fetch(roleId).then((role) => {
-                    // add the role
-                    interaction.member.roles.add(role).catch(console.error);
-                    // edit interaction reply
-                    interaction.editReply({ content: `Role ${role.name} added`, ephemeral: true });
-                    // edit the reply to the interaction
-                }).catch(console.error);
+            interaction.reply({ content: "Adding selected roles, please wait...", ephemeral: true }).then(() => {
+                interaction.values.forEach((value) => {
+                    const roleId = value.split(";")[0];
+                    guild.roles.fetch(roleId).then((role) => {
+                        // add the role
+                        interaction.member.roles.add(role).catch(console.error);
+                    }).catch(console.error);
+                });
             }).catch(console.error);
-        });
+        }).catch(console.error);
     }).catch(console.error);
 }
 

@@ -261,10 +261,16 @@ async function roles(interaction, database) {
             }).catch(console.error);
 
         guild.roles.fetch(roleId).then((role) => {
-            database.getRolesFromSelectorId(guild.id, selectorId).then((rows) => {
-                interaction.reply({ content: "Adding role...", ephemeral: true }).then(async () => {
-                    // remove all the roles from the selector
-                    for (var i in rows) await interaction.member.roles.remove(rows[i].roleId);
+            database.getRolesFromSelectorId(guild.id, selectorId).then(async (roles) => {
+                // check if member has already the role
+                for (var i in roles) {
+                    if (interaction.member.roles.cache.has(roles[i].roleId)) {
+                        // remove all the roles from the selector
+                        await interaction.member.roles.remove(roles[i].roleId);
+                    }
+                }
+
+                interaction.reply({ content: "Adding role...", ephemeral: true }).then(() => {
                     // add the role
                     interaction.member.roles.add(role).catch(console.error);
                     // edit the reply to the interaction
