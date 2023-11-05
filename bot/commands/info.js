@@ -1,4 +1,5 @@
-const { SlashCommandBuilder } = require("discord.js");
+const { SlashCommandBuilder, ActionRowBuilder } = require("discord.js");
+const { Button } = require("./elements/button.js");
 const { Timeout } = require("../modules/timeout.js");
 const timeout = new Timeout();
 const config = require("../../config.json");
@@ -58,7 +59,7 @@ async function execute(interaction, database, client) {
     // add timeout to the user
     timeout.addTimeout(user);
 
-    var description = "This bot has been completly developed and tested by <@341296805646041100> [zThundy__#2456]\n" +
+    var description = "This bot has been completly developed and tested by <@341296805646041100> [zThundy]\n" +
                       "If you want to check the code please visit the [GitHub repository](https://github.com/zThundy/discordbot-socials)\n" +
                       "If you want to check out other projects of mine, please visit my [GitHub profile](https://github.com/zThundy/)";
 
@@ -75,8 +76,27 @@ async function execute(interaction, database, client) {
             text: "Made with ❤️ by zThundy__"
         },
     }
+
+    const repo = new Button()
+        .setStyle("link")
+        .setURL("https://github.com/zThundy/discordbot-socials")
+        .setLabel("Source code")
+        .buildNoRow();
+
+    const profile = new Button()
+        .setStyle("link")
+        .setURL("https://github.com/zThundy")
+        .setLabel("Profile")
+        .buildNoRow();
     
-    interaction.reply({ embeds: [embed] });
+    const row = new ActionRowBuilder()
+        .addComponents(repo)
+        .addComponents(profile);
+    
+    interaction.reply({
+        embeds: [embed],
+        components: [row]
+    });
 };
 
 module.exports = {

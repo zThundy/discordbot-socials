@@ -258,6 +258,7 @@ async function multirolesbutton(interaction, database) {
     // get the selector id from the interaction value
     const selectorId = interaction.customId.split(";")[2]
     // defer interaction
+    console.log(` > Removing all multiroles from ${interaction.user.username} (${interaction.user.id})`);
     interaction.reply({ content: "Removing all multiroles...", ephemeral: true }).then(() => {
         database.getMultiRolesFromSelectorId(guild.id, selectorId).then(async (result) => {
             for (var i in result.roles) await interaction.member.roles.remove(result.roles[i].roleId);
@@ -330,7 +331,7 @@ async function multiroleselector(interaction, database) {
             .setStyle("danger")
             .setCustomId("multirolesbutton;" + internalId + ";" + selectorId)
             .setLabel("Remove all")
-            .setEmoji("❌")
+            .setEmoji("❎")
             .build();
 
         // send the message

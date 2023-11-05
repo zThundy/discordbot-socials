@@ -49,6 +49,10 @@ class Button {
         return this;
     }
 
+    buildNoRow() {
+        return this.button;
+    }
+
     build() {
         const row = new ActionRowBuilder()
             .addComponents(this.button);
