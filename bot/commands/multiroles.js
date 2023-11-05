@@ -261,7 +261,14 @@ async function multirolesbutton(interaction, database) {
     console.log(` > Removing all multiroles from ${interaction.user.username} (${interaction.user.id})`);
     interaction.reply({ content: "Removing all multiroles...", ephemeral: true }).then(() => {
         database.getMultiRolesFromSelectorId(guild.id, selectorId).then(async (result) => {
-            for (var i in result.roles) await interaction.member.roles.remove(result.roles[i].roleId);
+            // check if member has already the role
+            for (var i in result.roles) {
+                if (interaction.member.roles.cache.has(result.roles[i].roleId)) {
+                    // remove all the roles from the selector
+                    await interaction.member.roles.remove(result.roles[i].roleId);
+                }
+            }
+            // for (var i in result.roles) await interaction.member.roles.remove(result.roles[i].roleId);
             interaction.editReply({ content: "All multiroles removed", ephemeral: true });
         }).catch(console.error);
     }).catch(console.error);

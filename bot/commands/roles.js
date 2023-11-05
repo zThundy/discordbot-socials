@@ -254,8 +254,15 @@ async function roles(interaction, database) {
         // fetch the role in the guild
         if (roleId === "none")
             return interaction.reply({ content: "Removing all roles...", ephemeral: true }).then(() => {
-                database.getRolesFromSelectorId(guild.id, selectorId).then(async (rows) => {
-                    for (var i in rows) await interaction.member.roles.remove(rows[i].roleId);
+                database.getRolesFromSelectorId(guild.id, selectorId).then(async (roles) => {
+                    // check if member has already the role
+                    for (var i in roles) {
+                        if (interaction.member.roles.cache.has(roles[i].roleId)) {
+                            // remove all the roles from the selector
+                            await interaction.member.roles.remove(roles[i].roleId);
+                        }
+                    }
+                    // for (var i in rows) await interaction.member.roles.remove(rows[i].roleId);
                     interaction.editReply({ content: "All roles removed", ephemeral: true });
                 }).catch(console.error);
             }).catch(console.error);
