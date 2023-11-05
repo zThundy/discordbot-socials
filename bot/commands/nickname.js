@@ -22,11 +22,6 @@ function build(guild) {
 }
 
 async function execute(interaction, database) {
-    const user = interaction.user.id;
-    if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", ephemeral: true });
-    // add timeout to the user
-    timeout.addTimeout(user);
-    
     const guild = interaction.guild;
     const args = interaction.options;
     const nickname = args.getString('nickname');

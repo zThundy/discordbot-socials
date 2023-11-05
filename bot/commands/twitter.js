@@ -55,11 +55,6 @@ async function _getAllTwitterAccounts(interaction, database) {
 }
 
 async function execute(interaction, database) {
-    const userId = interaction.user.id;
-    if (timeout.checkTimeout(userId)) return interaction.reply({ content: "You're doing that too fast", ephemeral: true });
-    // add timeout to the user
-    timeout.addTimeout(userId);
-    
     const args = interaction.options;
     const action = args.getString('action');
     switch (action) {

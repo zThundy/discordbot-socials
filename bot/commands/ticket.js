@@ -32,11 +32,6 @@ function build(guild) {
 }
 
 function execute(interaction, database) {
-    const user = interaction.user.id;
-    if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", ephemeral: true });
-    // add timeout to the user
-    timeout.addTimeout(user);
-
     const args = interaction.options;
     const channel = interaction.channel;
     const guild = interaction.guild;

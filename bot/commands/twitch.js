@@ -56,11 +56,6 @@ async function _getAllTwitchChannels(interaction, database) {
 }
 
 async function execute(interaction, database) {
-    const userId = interaction.user.id;
-    if (timeout.checkTimeout(userId)) return interaction.reply({ content: "You're doing that too fast", ephemeral: true });
-    // add timeout to the user
-    timeout.addTimeout(userId);
-
     console.log(" > Twitch command executed");
     const guild = interaction.guild;
     const channel = interaction.channel;

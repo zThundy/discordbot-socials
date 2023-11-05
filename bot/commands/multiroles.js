@@ -28,11 +28,6 @@ function build(guild) {
 }
 
 function execute(interaction, database) {
-    const user = interaction.user.id;
-    if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", ephemeral: true });
-    // add timeout to the user
-    timeout.addTimeout(user);
-
     const args = interaction.options;
     switch (args.getString('action')) {
         case 'create':
@@ -183,8 +178,6 @@ async function create(interaction, database) {
 
     // get all selectors
     database.getAllMultiRolesAndSelectors(guild.id).then((rows) => {
-        console.log(rows);
-
         const options = [];
         for (var i in rows) {
             var description = rows[i].embed.description;
@@ -263,7 +256,6 @@ async function deletemultiroleselector(interaction, database) {
 async function multirolesbutton(interaction, database) {
     const guild = interaction.guild;
     // get the selector id from the interaction value
-    console.log(interaction.customId)
     const selectorId = interaction.customId.split(";")[2]
     // defer interaction
     interaction.reply({ content: "Removing all multiroles...", ephemeral: true }).then(() => {
