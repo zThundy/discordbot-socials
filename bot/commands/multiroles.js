@@ -144,7 +144,7 @@ async function add(interaction, database) {
             channel.send("Please send the tag to the role you want to add to the selector.\n\nIf you want to cancel the operation, send **cancel**\nIf you are done adding roles, send **done**");
             return;
         }
-        
+
         // collect all the roles
         if (data.title && data.description && data.maxChoices) {
             if (!data.collected) data.collected = [];
@@ -222,7 +222,7 @@ async function interaction(interaction, database) {
     if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", ephemeral: true });
     // add timeout to the user
     timeout.addTimeout(user);
-    
+
     // get the action to perform
     const action = interaction.customId.split(";")[0];
     switch (action) {
@@ -282,13 +282,18 @@ async function multiroles(interaction, database) {
             return;
         }
 
-        interaction.values.forEach((value) => {
-            const roleId = value.split(";")[0];
-
-            guild.roles.fetch(roleId).then((role) => {
-                database.getMultiRolesFromSelectorId(guild.id, selectorId).then(async (result) => {
+        database.getMultiRolesFromSelectorId(guild.id, selectorId).then(async (result) => {
+            // check if member has already the role
+            for (var i in result.roles) {
+                if (interaction.member.roles.cache.has(result.roles[i].roleId)) {
                     // remove all the roles from the selector
-                    for (var i in result.roles) await interaction.member.roles.remove(result.roles[i].roleId);
+                    await interaction.member.roles.remove(result.roles[i].roleId);
+                }
+            }
+
+            interaction.values.forEach((value) => {
+                const roleId = value.split(";")[0];
+                guild.roles.fetch(roleId).then((role) => {
                     // add the role
                     interaction.member.roles.add(role).catch(console.error);
                     // edit interaction reply
@@ -345,7 +350,7 @@ async function multiroleselector(interaction, database) {
         console.error(err);
     });
 }
-    
+
 module.exports = {
     build,
     execute,
