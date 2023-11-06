@@ -13,6 +13,7 @@ class MakeHTML {
         this.html = this.html.replace("{channelName}", ticket.channelName);
         this.html = this.html.replace("{ticketTitle}", ticket.title);
         this.html = this.html.replace("{ticketDescription}", ticket.description);
+        this.html = this.html.replace("{botProfilePicture}", ticket.avatar);
     }
 
     _addMessage(message) {

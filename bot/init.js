@@ -44,11 +44,12 @@ class BOT {
             });
         } else if (event === "message" || event === "messageUpdate") {
             const message = args[0];
+            const newMessage = args[1];
             if (message.author.bot) return;
             // send a message event to all the commands
             this.commands.forEach((command, string) => {
                 if (command.module.message)
-                    command.module.message(event, message, this.database, this.uploader, this.config);
+                    command.module.message(event, message, newMessage, { database: this.database, uploader: this.uploader, config: this.config });
             });
         }
     }

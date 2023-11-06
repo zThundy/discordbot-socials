@@ -289,6 +289,8 @@ async function interaction(interaction, database, _, config) {
         case "ticketclose":
             const ticketId = interaction.customId.split(";")[2];
             const channel = interaction.channel;
+            // get bot's profile picture
+            const avatar = interaction.client.user.avatarURL();
             database.getAllTicketMessages(ticketId).then((messages) => {
                 database.getTicket(ticketId).then((ticket) => {
                     database.getTicketConfig(guild.id).then((ticketConfig) => {
@@ -305,7 +307,8 @@ async function interaction(interaction, database, _, config) {
                             title: ticket.ticketTitle,
                             description: ticket.ticketDescription,
                             ticketId,
-                            edited: ticket.edited
+                            edited: ticket.edited,
+                            avatar
                         });
                         if (ticketConfig && ticketConfig.transcriptChannel !== "0") {
                             guild.channels.cache.get(ticketConfig.transcriptChannel)
@@ -334,7 +337,7 @@ function uuid() {
     return uuid;
 }
 
-function message(event, message, database, uploader) {
+function message(event, message, newMessage, { database, uploader, config }) {
     if (message.channel.name.includes("ticket-") && message.channel.topic) {
         message.guild.members.fetch(message.author.id)
             .then(m => {
@@ -371,7 +374,7 @@ function message(event, message, database, uploader) {
                 }
 
                 if (event === "messageUpdate") {
-                    database.updateTicketMessage(message.channel.topic, args[0].content, args[1].content).catch(e => console.error(e));
+                    database.updateTicketMessage(message.channel.topic, message.content, newMessage.content).catch(e => console.error(e));
                 } else {
                     if (attachments.length > 0) {
                         attachments.forEach((attachment) => {
