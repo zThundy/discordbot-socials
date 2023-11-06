@@ -5,18 +5,25 @@
 
     <body>
         <div class="header" id="myHeader">
-            <h1>Title: {ticketTitle}</h1>
-            <h2>Description: {ticketDescription}</h2>
+            <img src="{authorProfilePicture}" />
+            <div>
+                <h1>Title: {ticketTitle}</h1>
+                <h2>Description: {ticketDescription}</h2>
+            </div>
         </div>
 
         <div class="messages">
+        </div>
+
+        <div class="footer">
+            <span>Made with ❤️ by <a href="https://github.com/zThundy"><b>zThundy__</b></a></span>
         </div>
     </body>
 
     <style>
         html, body {
             font-family: sans-serif;
-            background-color: #313338;
+            background-color: rgb(49, 51, 56);
             margin: 0;
             height: 100vh;
             width: 100vw;
@@ -24,12 +31,46 @@
             display: flex;
             flex-direction: column;
         }
+
+        .footer {
+            padding: 10px 16px;
+            background: rgb(30, 31, 34);
+            border-top: 2px solid white;
+            /* add white shadow on bottom of container */
+            box-shadow: 0 4px 8px 0 rgba(255, 255, 255, 0.8);
+            color: #f1f1f1;
+            display: flex;
+            flex-direction: row;
+        }
+
+        .footer a {
+            color: rgb(0, 163, 54);
+            text-decoration: none;
+            transition: all .1s ease-in-out;
+        }
+
+        .footer a:hover {
+            color: rgb(0, 122, 41);
+            transition: all .1s ease-in-out;
+        }
         
         .header {
             padding: 10px 16px;
-            background: #424242;
+            background: rgb(30, 31, 34);
             border-bottom: 2px solid white;
+            /* add white shadow on bottom of container */
+            box-shadow: 0 4px 8px 0 rgba(255, 255, 255, 0.8);
             color: #f1f1f1;
+            display: flex;
+            flex-direction: row;
+        }
+
+        .header img {
+            margin: 0rem 1rem 0rem 0rem;
+            width: 8rem;
+            height: 8rem;
+            border-radius: 20rem;
+            border: 5px solid white;
         }
 
         .sticky {
@@ -48,12 +89,13 @@
             margin: 15px;
             display: flex;
             flex-direction: row;
+            border-radius: 30px;
+            transition: all .1s ease-in-out;
         }
 
         .message-container:hover {
-            border-radius: 30px;
             background-color: #2a2b30;
-            flex-direction: row;
+            transition: all .1s ease-in-out;
         }
 
         .message-author-icon {
@@ -62,26 +104,41 @@
             margin-left: 25px;
             margin-right: 15px;
             width: 80px;
+            transition: all .1s ease-in-out;
         }
 
         .message-author-icon:hover {
             cursor: pointer;
+            transition: all .1s ease-in-out;
         }
 
         .message-author-icon img {
+            position: relative;
             width: 70px;
             border-radius: 50%;
+            box-sizing: border-box;
+            border: 0px solid white;
+            transition: all .1s ease-in-out;
+        }
+
+        .message-author-icon img:hover {
+            /* add border inside of img */
+            box-sizing: border-box;
+            border: 4px solid white;
+            transition: all .1s ease-in-out;
         }
 
         .message-author {
             margin-top: 25px;
             margin-left: 25px;
-            font-style: bold;
+            font-weight: bold;
         }
 
         .message-author .message-author-name:hover {
             text-decoration: underline;
             cursor: pointer;
+            /* font-weight: bold; */
+            /* background-color: rgba(255, 255, 255, 0.1); */
         }
 
         .message-author-date {
