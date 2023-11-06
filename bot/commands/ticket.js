@@ -121,6 +121,13 @@ function execute(interaction, database) {
                         // send the selector
                         m.reply("Ticketing system configuration completed!");
                         database.createTicketConfig(guild.id, JSON.stringify(data.collected), data.title, data.description, data.transcriptChannel);
+                        // check if category "tickets" exists
+                        if (!guild.channels.cache.find(c => c.name === "tickets")) {
+                            guild.channels.create({
+                                name: 'tickets',
+                                type: ChannelType.GuildCategory
+                            }).catch(console.error);
+                        }
                         return collector.stop();
                     }
                     const role = m.mentions.roles.first();
@@ -160,7 +167,7 @@ async function interaction(interaction, database, _, config) {
                     type: "short",
                     label: "Insert a title",
                     max: 250,
-                    min: 20,
+                    min: 10,
                     placeholder: "Title of the question... (max 250)",
                     required: true,
                     id: "titleofquestion"
@@ -169,7 +176,7 @@ async function interaction(interaction, database, _, config) {
                     type: "paragraph",
                     label: "Type a description of the issue",
                     max: 4000,
-                    min: 50,
+                    min: 20,
                     placeholder: "Description of the issue... (max 4000)",
                     required: true,
                     id: "descriptionofquestion"
@@ -248,11 +255,13 @@ async function interaction(interaction, database, _, config) {
                                     ],
                                 })
                             }
+                            // create the channel
                             guild.channels.create({
                                 name: 'ticket-' + id,
                                 type: ChannelType.GuildText,
                                 permissionOverwrites: permissions,
-                                topic: ticketId
+                                topic: ticketId,
+                                parent: guild.channels.cache.find(c => c.name === "tickets").id
                             }).then(channel => {
                                 interaction.editReply({ content: "📨 <#" + channel.id + "> opened!", components: [], ephemeral: true }).catch(console.error);
                                 database.createTicket(id, guild.id, channel.id, user.id, ticketId, title, description);
