@@ -30,7 +30,6 @@ function build(guild) {
 // internal functions
 async function _getAllTwitchChannels(interaction, database) {
     const guild = interaction.guild;
-    const channel = interaction.channel;
     var channels = [];
     const res = await database.getAllTwitchChannels(guild.id);
     if (res) {
@@ -95,8 +94,6 @@ async function execute(interaction, database) {
 }
 
 async function listtwich(interaction, database) {
-    const guild = interaction.guild;
-    const channel = interaction.channel;
     const selectMenu = new SelectMenu()
         .setCustomId("listtwich;" + internalId)
         .setPlaceholder("List of twitch channels")
