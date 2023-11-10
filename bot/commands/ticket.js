@@ -122,7 +122,7 @@ function execute(interaction, database) {
                         m.reply("Ticketing system configuration completed!");
                         database.createTicketConfig(guild.id, JSON.stringify(data.collected), data.title, data.description, data.transcriptChannel);
                         // check if category "tickets" exists
-                        if (!guild.channels.cache.find(c => c.name === "tickets")) {
+                        if (!guild.channels.cache.find(c => c.name.toLowerCase().trim() === "tickets")) {
                             guild.channels.create({
                                 name: 'tickets',
                                 type: ChannelType.GuildCategory
@@ -261,7 +261,7 @@ async function interaction(interaction, database, _, config) {
                                 type: ChannelType.GuildText,
                                 permissionOverwrites: permissions,
                                 topic: ticketId,
-                                parent: guild.channels.cache.find(c => c.name === "tickets").id
+                                parent: guild.channels.cache.find(c => c.name.toLowerCase().trim() === "tickets").id
                             }).then(channel => {
                                 interaction.editReply({ content: "📨 <#" + channel.id + "> opened!", components: [], ephemeral: true }).catch(console.error);
                                 database.createTicket(id, guild.id, channel.id, user.id, ticketId, title, description);
