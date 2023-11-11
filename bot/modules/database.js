@@ -31,6 +31,8 @@ class SQL {
                 await this._run("CREATE TABLE IF NOT EXISTS ticketMessages (ticketId TEXT, content TEXT, username TEXT, authorProfile TEXT, currentTime TEXT, color TEXT, orderDate TEXT, messageType TEXT, edited TEXT)");
                 // other tables
                 await this._run("CREATE TABLE IF NOT EXISTS nicknames (guildId TEXT, nickname TEXT)");
+                // role sync
+                await this._run("CREATE TABLE IF NOT EXISTS syncrole (guildId TEXT, roleId TEXT, otherGuildId TEXT, otherRoleId TEXT)");
                 resolve();
             } catch (err) {
                 console.error(err);
@@ -43,6 +45,50 @@ class SQL {
         return new Promise((resolve, reject) => {
             this.db.run(stmt, {}, () => { resolve() });
         })
+    }
+
+    /**
+     * Sync role section
+     */
+
+    getSyncRoles(guildId) {
+        console.log("<DATABASE> getSyncRole call");
+        return new Promise((resolve, reject) => {
+            this.db.all("SELECT * FROM syncrole WHERE guildId = ?", [guildId], (err, rows) => {
+                if (err) reject(err);
+                resolve(rows);
+            });
+        });
+    }
+
+    getSyncRole(guildId, roleId, otherGuildId) {
+        console.log("<DATABASE> getSyncRole call");
+        return new Promise((resolve, reject) => {
+            this.db.all("SELECT * FROM syncrole WHERE guildId = ? AND roleId = ? AND otherGuildId = ?", [guildId, roleId, otherGuildId], (err, rows) => {
+                if (err) reject(err);
+                resolve(rows);
+            });
+        });
+    }
+
+    addSyncRole(guildId, roleId, otherGuildId, otherRoleId) {
+        console.log("<DATABASE> addSyncRole call");
+        return new Promise((resolve, reject) => {
+            this.db.run("INSERT INTO syncrole VALUES (?, ?, ?, ?)", [guildId, roleId, otherGuildId, otherRoleId], (err) => {
+                if (err) reject(err);
+                resolve();
+            });
+        });
+    }
+
+    deleteSyncRole(guildId, roleId) {
+        console.log("<DATABASE> deleteSyncRole call");
+        return new Promise((resolve, reject) => {
+            this.db.run("DELETE FROM syncrole WHERE guildId = ? AND roleId = ?", [guildId, roleId], (err) => {
+                if (err) reject(err);
+                resolve();
+            });
+        });
     }
 
     /**

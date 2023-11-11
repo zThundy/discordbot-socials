@@ -43,6 +43,15 @@ client.on(Events.MessageCreate, message => {
     }
 });
 
+client.on(Events.GuildMemberUpdate, (oldU, newU) => {
+    try {
+        const bot = bots[newU.guild.id];
+        if (bot) bot.event("userUpdate", oldU, newU);
+    } catch (err) {
+        console.error(err);
+    }
+});
+
 client.on(Events.MessageUpdate, (oldM, newM) => {
     try {
         const bot = bots[oldM.guild.id];
@@ -50,7 +59,7 @@ client.on(Events.MessageUpdate, (oldM, newM) => {
     } catch (err) {
         console.error(err);
     }
-})
+});
 
 client.on(Events.InteractionCreate, (interaction) => {
     try {

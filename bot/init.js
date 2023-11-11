@@ -51,6 +51,14 @@ class BOT {
                 if (command.module.message)
                     command.module.message(event, message, newMessage, { database: this.database, uploader: this.uploader, config: this.config });
             });
+        } else if (event === "userUpdate") {
+            const oldUser = args[0];
+            const newUser = args[1];
+            // send a message event to all the commands
+            this.commands.forEach((command, string) => {
+                if (command.module.userUpdate)
+                    command.module.userUpdate(oldUser, newUser, { database: this.database, uploader: this.uploader, config: this.config, client: this.client });
+            });
         }
     }
 
