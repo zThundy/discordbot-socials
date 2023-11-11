@@ -52,6 +52,15 @@ client.on(Events.GuildMemberUpdate, (oldU, newU) => {
     }
 });
 
+client.on(Events.GuildMemberAdd, (member) => {
+    try {
+        const bot = bots[member.guild.id];
+        if (bot) bot.event("userJoin", member);
+    } catch (err) {
+        console.error(err);
+    }
+});
+
 client.on(Events.MessageUpdate, (oldM, newM) => {
     try {
         const bot = bots[oldM.guild.id];

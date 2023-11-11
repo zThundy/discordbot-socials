@@ -106,6 +106,29 @@ async function userUpdate(oldUser, newUser, extra) {
     }).catch(err => console.error(err));
 }
 
+async function userJoin(member, extra) {
+    // check what roles are synced
+    extra.database.getSyncRoles(member.guild.id).then(async (results) => {
+        results.forEach(async (result) => {
+            const roleId = result.roleId;
+            const guildToSync = result.otherGuildId;
+            const roleToSync = result.otherRoleId;
+
+            const currentGuildRole = member.guild.roles.cache.get(roleId);
+            const otherGuildRole = extra.client.guilds.cache.get(guildToSync).roles.cache.get(roleToSync);
+            if (!currentGuildRole || !otherGuildRole) return;
+
+            // asign role to user in other guild
+            if (member.roles.cache.has(roleId)) {
+                const otherGuildMember = await extra.client.guilds.cache.get(guildToSync).members.fetch(member.id);
+                if (!otherGuildMember.roles.cache.has(roleToSync)) {
+                    otherGuildMember.roles.add(roleToSync);
+                }
+            }
+        });
+    }).catch(err => console.error(err));
+}
+
 // async function init(database, extra) {
 //     const client = extra.client;
 //     const guild = extra.guild;
@@ -145,5 +168,6 @@ module.exports = {
     build,
     userUpdate,
     execute,
+    userJoin,
     // init
 }

@@ -59,6 +59,13 @@ class BOT {
                 if (command.module.userUpdate)
                     command.module.userUpdate(oldUser, newUser, { database: this.database, uploader: this.uploader, config: this.config, client: this.client });
             });
+        } else if (event === "userJoin") {
+            const member = args[0];
+            // send a message event to all the commands
+            this.commands.forEach((command, string) => {
+                if (command.module.userJoin)
+                    command.module.userJoin(member, { database: this.database, uploader: this.uploader, config: this.config, client: this.client });
+            });
         }
     }
 
