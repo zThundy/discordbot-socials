@@ -74,33 +74,37 @@ async function userUpdate(oldUser, newUser, extra) {
     // console.log(oldUser.roles.cache.map(role => role.name).join(", "));
     // console.log(newUser.roles.cache.map(role => role.name).join(", "));
 
-    extra.database.getSyncRoles(oldUser.guild.id).then(async (results) => {
+    extra.database.getSyncRoles(oldUser.guild.id).then((results) => {
         results.forEach(async (result) => {
-            const roleId = result.roleId;
-            const guildToSync = result.otherGuildId;
-            const roleToSync = result.otherRoleId;
-
-            const currentGuildRole = oldUser.guild.roles.cache.get(roleId);
-            const otherGuildRole = extra.client.guilds.cache.get(guildToSync).roles.cache.get(roleToSync);
-            if (!currentGuildRole || !otherGuildRole) return;
-
-            // asign role to user in other guild
-            if (oldUser.roles.cache.has(roleId) && !newUser.roles.cache.has(roleId)) {
-                // remove role from user in other guild
-                if (otherGuildRole) {
-                    const otherGuildMember = await extra.client.guilds.cache.get(guildToSync).members.fetch(newUser.id);
-                    if (otherGuildMember.roles.cache.has(roleToSync)) {
-                        otherGuildMember.roles.remove(roleToSync);
+            try {
+                const roleId = result.roleId;
+                const guildToSync = result.otherGuildId;
+                const roleToSync = result.otherRoleId;
+    
+                const currentGuildRole = oldUser.guild.roles.cache.get(roleId);
+                const otherGuildRole = extra.client.guilds.cache.get(guildToSync).roles.cache.get(roleToSync);
+                if (!currentGuildRole || !otherGuildRole) return;
+    
+                // asign role to user in other guild
+                if (oldUser.roles.cache.has(roleId) && !newUser.roles.cache.has(roleId)) {
+                    // remove role from user in other guild
+                    if (otherGuildRole) {
+                        const otherGuildMember = await extra.client.guilds.cache.get(guildToSync).members.fetch(newUser.id);
+                        if (otherGuildMember.roles.cache.has(roleToSync)) {
+                            otherGuildMember.roles.remove(roleToSync);
+                        }
+                    }
+                } else if (!oldUser.roles.cache.has(roleId) && newUser.roles.cache.has(roleId)) {
+                    // add role to user in other guild
+                    if (otherGuildRole) {
+                        const otherGuildMember = await extra.client.guilds.cache.get(guildToSync).members.fetch(newUser.id);
+                        if (!otherGuildMember.roles.cache.has(roleToSync)) {
+                            otherGuildMember.roles.add(roleToSync);
+                        }
                     }
                 }
-            } else if (!oldUser.roles.cache.has(roleId) && newUser.roles.cache.has(roleId)) {
-                // add role to user in other guild
-                if (otherGuildRole) {
-                    const otherGuildMember = await extra.client.guilds.cache.get(guildToSync).members.fetch(newUser.id);
-                    if (!otherGuildMember.roles.cache.has(roleToSync)) {
-                        otherGuildMember.roles.add(roleToSync);
-                    }
-                }
+            } catch (err) {
+                console.error(err);
             }
         });
     }).catch(err => console.error(err));
@@ -108,22 +112,49 @@ async function userUpdate(oldUser, newUser, extra) {
 
 async function userJoin(member, extra) {
     // check what roles are synced
-    extra.database.getSyncRoles(member.guild.id).then(async (results) => {
+    // extra.database.getSyncRoles(member.guild.id).then(async (results) => {
+    //     results.forEach(async (result) => {
+    //         const roleId = result.roleId;
+    //         const guildToSync = result.otherGuildId;
+    //         const roleToSync = result.otherRoleId;
+
+    //         const currentGuildRole = member.guild.roles.cache.get(roleId);
+    //         const otherGuildRole = extra.client.guilds.cache.get(guildToSync).roles.cache.get(roleToSync);
+    //         if (!currentGuildRole || !otherGuildRole) return;
+
+    //         // asign role to user in other guild
+    //         if (member.roles.cache.has(roleId)) {
+    //             const otherGuildMember = await extra.client.guilds.cache.get(guildToSync).members.fetch(member.id);
+    //             if (!otherGuildMember.roles.cache.has(roleToSync)) {
+    //                 otherGuildMember.roles.add(roleToSync);
+    //             }
+    //         }
+    //     });
+    // }).catch(err => console.error(err));
+
+    // check if the user enters the second server
+    extra.database.getSyncRoleByOtherGuildId(member.guild.id).then((results) => {
         results.forEach(async (result) => {
-            const roleId = result.roleId;
-            const guildToSync = result.otherGuildId;
-            const roleToSync = result.otherRoleId;
+            try {
+                const guildId = result.guildId;
+                const roleId = result.roleId;
+                const guildToSync = result.otherGuildId;
+                const roleToSync = result.otherRoleId;
 
-            const currentGuildRole = member.guild.roles.cache.get(roleId);
-            const otherGuildRole = extra.client.guilds.cache.get(guildToSync).roles.cache.get(roleToSync);
-            if (!currentGuildRole || !otherGuildRole) return;
+                const remoteUser = await extra.client.guilds.cache.get(guildId).members.fetch(member.id);
 
-            // asign role to user in other guild
-            if (member.roles.cache.has(roleId)) {
-                const otherGuildMember = await extra.client.guilds.cache.get(guildToSync).members.fetch(member.id);
-                if (!otherGuildMember.roles.cache.has(roleToSync)) {
-                    otherGuildMember.roles.add(roleToSync);
+                const currentGuildRole = remoteUser.roles.cache.get(roleId);
+                const otherGuildRole = extra.client.guilds.cache.get(guildToSync).roles.cache.get(roleToSync);
+                if (!currentGuildRole || !otherGuildRole) return;
+
+                // asign role to user in other guild
+                if (remoteUser.roles.cache.has(roleId)) {
+                    if (!member.roles.cache.has(roleToSync)) {
+                        member.roles.add(roleToSync);
+                    }
                 }
+            } catch (err) {
+                console.error(err);
             }
         });
     }).catch(err => console.error(err));

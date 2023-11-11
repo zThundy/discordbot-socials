@@ -71,6 +71,16 @@ class SQL {
         });
     }
 
+    getSyncRoleByOtherGuildId(otherGuildId) {
+        console.log("<DATABASE> getSyncRoleByOtherGuildId call");
+        return new Promise((resolve, reject) => {
+            this.db.all("SELECT * FROM syncrole WHERE otherGuildId = ?", [otherGuildId], (err, rows) => {
+                if (err) reject(err);
+                resolve(rows);
+            });
+        });
+    }
+
     addSyncRole(guildId, roleId, otherGuildId, otherRoleId) {
         console.log("<DATABASE> addSyncRole call");
         return new Promise((resolve, reject) => {
