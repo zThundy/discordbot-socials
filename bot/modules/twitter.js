@@ -1,5 +1,4 @@
 const { EmbedBuilder } = require("discord.js");
-const https = require("https");
 
 class TwitterAPI {
     constructor(config, client) {
@@ -26,7 +25,7 @@ class TwitterAPI {
             .replace(/&#39;/g, "'")
             .replace(/&amp;#39;/g, "'")
             .replace(/&amp;quot;/g, "\"");
-        
+
         const embed = {
             title: tweet.user.name + " posted a tweet!",
             url: `https://twitter.com/${tweet.user.screen_name}/status/${tweet.id_str}`,
