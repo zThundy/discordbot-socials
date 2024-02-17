@@ -4,7 +4,7 @@ const { Timeout } = require("../modules/timeout.js");
 const timeout = new Timeout();
 
 // create a random numberic id
-const internalId = "924668753215564";
+const internalId = "28e80869b6a9a1777fdf";
 
 function build(guild) {
     const command = new SlashCommandBuilder();

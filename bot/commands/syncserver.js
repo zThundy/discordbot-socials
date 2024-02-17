@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, PermissionsBitField } = require("discord.js");
 
-const internalId = "114169568744501";
+const internalId = "d18ace6d61530a704a55";
 
 function build(guild) {
     const command = new SlashCommandBuilder();

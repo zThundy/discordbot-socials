@@ -3,7 +3,7 @@ const { SelectMenu } = require('./elements/dropdown.js');
 const { Timeout } = require("../modules/timeout.js");
 const timeout = new Timeout();
 
-const internalId = "554871236547822";
+const internalId = "67ae192746545ff08f5e";
 
 function build(guild) {
     const command = new SlashCommandBuilder();

@@ -39,6 +39,10 @@ async function execute(interaction, _, _, config) {
                 value: "Use this command to change the nickname of the bot in the current guild."
             },
             {
+                name: "📜 Verify (/verify)",
+                value: "Use this command to setup the verification system for the server."
+            },
+            {
                 name : "📜 Info (/info)",
                 value: "Use this command to get information about the bot."
             },

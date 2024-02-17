@@ -33,6 +33,8 @@ class SQL {
                 await this._run("CREATE TABLE IF NOT EXISTS nicknames (guildId TEXT, nickname TEXT)");
                 // role sync
                 await this._run("CREATE TABLE IF NOT EXISTS syncrole (guildId TEXT, roleId TEXT, otherGuildId TEXT, otherRoleId TEXT)");
+                // verify system
+                await this._run("CREATE TABLE IF NOT EXISTS verify (guildId TEXT, roleId TEXT)");
                 resolve();
             } catch (err) {
                 console.error(err);
@@ -550,6 +552,30 @@ class SQL {
                 else resolve(false);
             });
         });
+    }
+
+    /**
+     * verify section
+     */
+
+    getVerify(guildId) {
+        console.log("<DATABASE> getVerify call");
+        return new Promise((resolve, reject) => {
+            this.db.get("SELECT * FROM verify WHERE guildId = ?", [guildId], (err, row) => {
+                if (err) reject(err);
+                resolve(row);
+            });
+        });
+    }
+
+    createVerify(guildId, roleId) {
+        console.log("<DATABASE> createVerify call");
+        this.db.run("INSERT INTO verify VALUES (?, ?)", [guildId, roleId]);
+    }
+
+    deleteVerify(guildId) {
+        console.log("<DATABASE> deleteVerify call");
+        this.db.run("DELETE FROM verify WHERE guildId = ?", [guildId]);
     }
 
     /**

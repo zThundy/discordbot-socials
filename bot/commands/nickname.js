@@ -2,7 +2,7 @@ const { SlashCommandBuilder, PermissionsBitField } = require("discord.js");
 const { Timeout } = require("../modules/timeout.js");
 const timeout = new Timeout();
 
-const internalId = "472513600254789";
+const internalId = "3b7edfe540c8ae6fb63e";
 
 function build(guild) {
     const command = new SlashCommandBuilder();

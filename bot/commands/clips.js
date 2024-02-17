@@ -4,7 +4,7 @@ const { Timeout } = require("../modules/timeout.js");
 const timeout = new Timeout();
 
 // create a random numberic id
-const internalId = "21425885691454";
+const internalId = "cc063c76f518c15904b0";
 const channels = {};
 
 function build(guild) {
