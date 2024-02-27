@@ -141,7 +141,8 @@ async function interaction(interaction, database) {
     timeout.addTimeout(user);
     // check if user has the role already
     const roleID = interaction.customId.split(";")[3];
-    const role = await guild.roles.fetch(roleID);
+    await guild.roles.fetch(roleID);
+    const role = interaction.guild.roles.cache.get(roleID);
     if (role) {
         const member = interaction.member;
         if (member.roles.cache.has(roleID)) {
