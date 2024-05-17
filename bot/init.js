@@ -75,6 +75,8 @@ class BOT {
         // create al data subfolders if they don't exist
         if (!fs.existsSync(this.config.uploader.folder)) fs.mkdirSync(this.config.uploader.folder);
         if (!fs.existsSync(this.config.tickets.folder)) fs.mkdirSync(this.config.tickets.folder);
+        // hard coded cause i'm not bothered enough to make it configurable
+        if (!fs.existsSync(path.resolve("./", "bot", "images"))) fs.mkdirSync(path.resolve("./", "bot", "images"));
     }
     
     _buildCommands() {
