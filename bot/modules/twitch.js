@@ -1,4 +1,8 @@
 const https = require("https");
+const path = require("path");
+const request = require("request");
+const fs = require("fs");
+const { AttachmentBuilder } = require("discord.js");
 
 class TwitchApi {
     constructor(config, client) {
@@ -53,7 +57,7 @@ class TwitchApi {
                     req.write(data);
                     req.end();
                 }
-            } catch(e) {
+            } catch (e) {
                 this.resetToken();
                 reject(e);
             }
@@ -160,54 +164,91 @@ class TwitchApi {
         });
     }
 
+    _downloadPic(url, name) {
+        return new Promise((resolve, reject) => {
+            const picPath = path.resolve("./", "bot", "images", `${name}.png`);
+            request.head(url, (err, res, body) => {
+                if (err) return reject(err);
+                request(url).pipe(fs.createWriteStream(picPath).on("close", () => resolve(picPath)).on("close", () => resolve(picPath)));
+            });
+        })
+    }
+
     getEmbed(stream) {
-        // parse it if is a string
-        if (typeof stream === "string") stream = JSON.parse(stream);
+        return new Promise((resolve, reject) => {
+            // parse it if is a string
+            if (typeof stream === "string") stream = JSON.parse(stream);
 
-        const embed = {
-            title: stream.user_name + " is now live on Twitch!",
-            url: `https://twitch.tv/${stream.user_name}`,
-            color: 0x6441a5,
-            timestamp: new Date().toISOString(),
-            thumbnail: {
-                url: "https://cdn.discordapp.com/attachments/996069380423164024/1052532333313540096/twitch-logo-4931D91F85-seeklogo.com.png"
-            }
-        };
-        if (stream.title) {
-            embed.fields = [
-                { 
-                    name: "Title",
-                    value: stream.title || "No title",
-                },
-                {
-                    name: "Game",
-                    value: stream.game_name || "Unknown"
-                },
-                {
-                    name: "Viewers",
-                    value: String(stream.viewer_count || 0)
-                }
-            ];
-        }
-        if (stream.user_name) {
-            embed.author = {
-                name: stream.user_name,
+            const embed = {
+                title: stream.user_name + " is now live on Twitch!",
                 url: `https://twitch.tv/${stream.user_name}`,
-                icon_url: stream.profile_image_url
+                color: 0x6441a5,
+                timestamp: new Date().toISOString(),
+                thumbnail: {
+                    url: `attachment://twitch.png`
+                }
             };
-        }
-        if (stream.thumbnail_url) {
-            embed.image = {
-                url: stream.thumbnail_url.replace("{width}", "1280").replace("{height}", "720")
-            };
-        }
-        if (stream.viewer_count) {
-            embed.footer = {
-                text: "Made with ❤️ by zThundy__"
-            };
-        }
 
-        return [embed];
+            if (stream.title) {
+                embed.fields = [
+                    {
+                        name: "Title",
+                        value: stream.title || "No title",
+                    },
+                    {
+                        name: "Game",
+                        value: stream.game_name || "Unknown"
+                    },
+                    {
+                        name: "Viewers",
+                        value: String(stream.viewer_count || 0)
+                    }
+                ];
+            }
+
+            if (stream.user_name) {
+                embed.author = {
+                    name: stream.user_name,
+                    url: `https://twitch.tv/${stream.user_name}`,
+                    icon_url: stream.profile_image_url
+                };
+            }
+
+            if (stream.thumbnail_url) {
+                embed.image = {
+                    url: `attachment://${stream.user_name}.png`
+                };
+            }
+
+            if (stream.viewer_count) {
+                embed.footer = {
+                    text: "Made with ❤️ by zThundy__"
+                };
+            }
+
+            const twitchLogoPath = path.resolve("./", "bot", "images", "twitch.png");
+            const logo = new AttachmentBuilder(twitchLogoPath)
+                .setName("twitch.png")
+
+            const streamPic = stream.thumbnail_url.replace("{width}", "1280").replace("{height}", "720");
+            this._downloadPic(streamPic, stream.user_name)
+                .then((picPath) => {
+                    console.log(" > Downloaded stream picture", picPath)
+                    const pic = new AttachmentBuilder(picPath)
+                        .setName(`${stream.user_name}.png`);
+
+                    resolve({ embeds: [embed], files: [logo, pic] });
+                })
+                .catch((err) => {
+                    console.error(err);
+                    // resolve cached picture
+                    const localPic = path.resolve("./", "bot", "images", `${stream.user_name}.png`)
+                    const pic = new AttachmentBuilder(localPic)
+                        .setName(`${stream.user_name}.png`);
+
+                    resolve({ embeds: [embed], files: [logo, pic] });
+                });
+        });
     }
 }
 module.exports = { TwitchApi };

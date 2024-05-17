@@ -5,7 +5,8 @@ class Logger {
     constructor() {
         this.fileStream = null;
         this.logStream = null;
-        this.logFile = path.join("./bot/data/logs", "log.txt");
+        this.logFile = path.join("./", "bot", "data", "logs", "log.txt");
+        this.logFolder = path.join("./", "bot", "data", "logs");
 
         this.log = this.log.bind(this);
         console.log = this.log;
@@ -42,7 +43,7 @@ class Logger {
         // create main data folder (here since this module gets required first)
         if (!fs.existsSync("./bot/data")) fs.mkdirSync("./bot/data");
         // check if folder exists
-        if (!fs.existsSync(path.join("./bot/data/logs"))) fs.mkdirSync(path.join("./bot/data/logs"));
+        if (!fs.existsSync(path.join(this.logFolder))) fs.mkdirSync(path.join(this.logFolder));
     }
 
     checkFile() {
@@ -58,7 +59,7 @@ class Logger {
         // rename file
         const date = new Date();
         // create new log file and rename adding date as DD/MM/YYYY HH:MM:SS
-        const newFile = path.join("./bot/data/logs", `log_${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()} ${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}.txt`);
+        const newFile = path.join(this.logFolder, `log_${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()} ${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}.txt`);
         // print file rotation
         console.log(`Renaming log file to ${newFile}`);
         // end the stream of the current log file

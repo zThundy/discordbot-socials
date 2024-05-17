@@ -185,9 +185,10 @@ async function init(database, extra) {
 }
 
 function _addChannel(channel) {
-    var uid = _extra.cron.add(5 * 60 * 1000, (uid) => {
+    // var uid = _extra.cron.add(5 * 60 * 1000, (uid) => {
+    var uid = _extra.cron.add(5 * 1000, (uid) => {
         if (!channels[uid]) return _extra.cron.remove(uid);
-        
+
         _extra.twitch.checkStream(channels[uid].channelName).then((stream) => {
             if (stream) {
                 _extra.client.guilds.fetch(channels[uid].guildId).then(guild => {
@@ -197,10 +198,14 @@ function _addChannel(channel) {
                             // update the isLive status
                             channels[uid].isLive = true;
                             // send the message
-                            discordChannel.send({
-                                content: `@everyone **${channels[uid].channelName}** is now live on Twitch!\n\nhttps://twitch.tv/${channels[uid].channelName}`,
-                                embeds: _extra.twitch.getEmbed(stream)
-                            });
+                            _extra.twitch.getEmbed(stream)
+                                .then(data => {
+                                    discordChannel.send({
+                                        content: `@everyone **${channels[uid].channelName}** is now live on Twitch!\n\nhttps://twitch.tv/${channels[uid].channelName}`,
+                                        embeds: data.embeds,
+                                        files: data.files
+                                    });
+                                });
                         }
                     }).catch(console.error);
                 }).catch(console.error);
