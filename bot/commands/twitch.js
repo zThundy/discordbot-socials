@@ -185,8 +185,8 @@ async function init(database, extra) {
 }
 
 function _addChannel(channel) {
-    // var uid = _extra.cron.add(5 * 60 * 1000, (uid) => {
-    var uid = _extra.cron.add(5 * 1000, (uid) => {
+    var uid = _extra.cron.add(5 * 60 * 1000, (uid) => {
+    // var uid = _extra.cron.add(5 * 1000, (uid) => {
         if (!channels[uid]) return _extra.cron.remove(uid);
 
         _extra.twitch.checkStream(channels[uid].channelName).then((stream) => {
