@@ -1,5 +1,6 @@
 const SQL = require("./modules/database.js");
 const fs = require("fs");
+const path = require("path");
 const { TwitchApi } = require("./modules/twitch.js");
 const { TwitterAPI } = require("./modules/twitter.js");
 const { Timeout } = require("./modules/timeout.js");
