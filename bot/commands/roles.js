@@ -17,7 +17,8 @@ function build(guild) {
             .setRequired(true)
             .addChoices({ name: '⏺ Send', value: 'create' })
             .addChoices({ name: '✅ Create selector', value: 'add' })
-            .addChoices({ name: '❌ Delete selector', value: 'cancel' });
+            .addChoices({ name: '❌ Delete selector', value: 'cancel' })
+            .addChoices({ name: '📌 Edit role', value: 'edit' });
         return option;
     });
     command.setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator);
@@ -37,6 +38,9 @@ function execute(interaction, database) {
             break;
         case "cancel":
             cancel(interaction, database);
+            break;
+        case "edit":
+            edit(interaction, database);
             break;
     }
 }
@@ -204,6 +208,51 @@ async function create(interaction, database) {
     });
 }
 
+async function edit(interaction, database) {
+    const guild = interaction.guild;
+    const channel = interaction.channel;
+    const user = interaction.user;
+
+    // get all selectors
+    database.getAllRolesAndSelectors(guild.id).then((rows) => {
+        const options = [];
+        for (var i in rows) {
+            var description = rows[i].embed.description;
+            if (description.length >= 95) description = description.substring(0, 95) + "...";
+            options.push({
+                label: rows[i].embed.title,
+                value: rows[i].selectorId,
+                description,
+                emoji: "📌"
+            });
+        }
+
+        if (options.length == 0) {
+            interaction.reply({
+                content: "There are no selectors in this server",
+                ephemeral: true
+            });
+            return;
+        }
+
+        const selectMenu = new SelectMenu()
+            .setCustomId("editroleselector;" + internalId)
+            .setPlaceholder("Pick a role selector to edit")
+            .setMinValues(1)
+            .setMaxValues(1)
+            .addOptions(options)
+            .build();
+
+        interaction.reply({
+            content: "Select a role selector to edit",
+            components: [selectMenu],
+            ephemeral: true
+        });
+    }).catch((err) => {
+        console.error(err);
+    });
+}
+
 // interaction command
 async function interaction(interaction, database) {
     const user = interaction.user.id;
@@ -223,7 +272,61 @@ async function interaction(interaction, database) {
         case "deleteroleselector":
             deleteroleselector(interaction, database);
             break;
+        case "editroleselector":
+            editroleselector(interaction, database);
+            break;
     }
+}
+
+async function roleselector(interaction, database) {
+    const guild = interaction.guild;
+    const selectorId = interaction.values[0];
+
+    // get the selector and the roles
+    database.getRolesFromSelectorId(guild.id, selectorId).then(async (roles) => {
+        if (roles.length == 0)
+            return interaction.reply({ content: "There has been an error during the creation of this selector\nPlease delete it and create it again.", ephemeral: true });
+        const selectors = [{
+            label: "No role selected",
+            value: "none;" + selectorId,
+            description: "Select this to remove all the roles",
+            emoji: "❌",
+            default: true
+        }];
+        for (var i in roles) {
+            selectors.push({
+                label: roles[i].roleName,
+                value: roles[i].roleId + ";" + selectorId,
+                description: `Select this to get the role ${roles[i].roleName}`,
+                emoji: "⏺"
+            });
+        }
+
+        // create the select menu
+        const selectMenu = new SelectMenu()
+            .setCustomId("roles;" + internalId)
+            .setPlaceholder("Select a role...")
+            .setMinValues(1)
+            .setMaxValues(1)
+            .addOptions(selectors)
+            .build();
+
+        // send the message
+        interaction.reply({
+            embeds: [await database.getEmbedFromSelectorId(guild.id, selectorId)],
+            components: [selectMenu]
+        }).catch((err) => {
+            console.error(err);
+        });
+    }).catch((err) => {
+        console.error(err);
+    });
+}
+
+async function editroleselector(interaction, database) {
+    const guild = interaction.guild;
+    const selectorId = interaction.values[0];
+    //
 }
 
 async function deleteroleselector(interaction, database) {
@@ -286,51 +389,6 @@ async function roles(interaction, database) {
             }).catch(console.error);
         }).catch(console.error);
     }).catch(console.error);
-}
-
-async function roleselector(interaction, database) {
-    const guild = interaction.guild;
-    const selectorId = interaction.values[0];
-
-    // get the selector and the roles
-    database.getRolesFromSelectorId(guild.id, selectorId).then(async (roles) => {
-        if (roles.length == 0)
-            return interaction.reply({ content: "There has been an error during the creation of this selector\nPlease delete it and create it again.", ephemeral: true });
-        const selectors = [{
-            label: "No role selected",
-            value: "none;" + selectorId,
-            description: "Select this to remove all the roles",
-            emoji: "❌",
-            default: true
-        }];
-        for (var i in roles) {
-            selectors.push({
-                label: roles[i].roleName,
-                value: roles[i].roleId + ";" + selectorId,
-                description: `Select this to get the role ${roles[i].roleName}`,
-                emoji: "⏺"
-            });
-        }
-
-        // create the select menu
-        const selectMenu = new SelectMenu()
-            .setCustomId("roles;" + internalId)
-            .setPlaceholder("Select a role...")
-            .setMinValues(1)
-            .setMaxValues(1)
-            .addOptions(selectors)
-            .build();
-
-        // send the message
-        interaction.reply({
-            embeds: [await database.getEmbedFromSelectorId(guild.id, selectorId)],
-            components: [selectMenu]
-        }).catch((err) => {
-            console.error(err);
-        });
-    }).catch((err) => {
-        console.error(err);
-    });
 }
     
 module.exports = {
