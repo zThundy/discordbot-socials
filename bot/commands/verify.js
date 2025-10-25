@@ -112,7 +112,7 @@ function create(interaction, database) {
                     .setLabel("✔️ Verify")
                     .setCustomId("verify;" + internalId + ";" + guild.id + ";" + role.id)
                     .build();
-                
+
                 const embed = {
                     title: "Verification",
                     description: `Please click the button to verify yourself`,
@@ -134,25 +134,36 @@ function create(interaction, database) {
 }
 
 async function interaction(interaction, database) {
-    const user = interaction.user.id;
-    const guild = interaction.guild;
-    if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", flags: MessageFlags.Ephemeral });
-    // add timeout to the user
-    timeout.addTimeout(user);
-    // check if user has the role already
-    const roleID = interaction.customId.split(";")[3];
-    await guild.roles.fetch(roleID);
-    const role = interaction.guild.roles.cache.get(roleID);
-    if (role) {
-        const member = interaction.member;
-        if (member.roles.cache.has(roleID)) {
-            return interaction.reply({ content: "You already have the role", flags: MessageFlags.Ephemeral });
+    try {
+        const user = interaction.user.id;
+        const guild = interaction.guild;
+        if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", flags: MessageFlags.Ephemeral });
+        // add timeout to the user
+        timeout.addTimeout(user);
+        // check if user has the role already
+        const roleID = interaction.customId.split(";")[3];
+        await guild.roles.fetch(roleID);
+        const role = interaction.guild.roles.cache.get(roleID);
+        if (role) {
+            const member = interaction.member;
+            if (member.roles.cache.has(roleID)) {
+                return interaction.reply({ content: "You already have the role", flags: MessageFlags.Ephemeral });
+            } else {
+                member.roles.add(role)
+                    .then(() => {
+                        interaction.reply({ content: "You have been verified", flags: MessageFlags.Ephemeral });
+                    })
+                    .catch((err) => {
+                        console.error(err);
+                        interaction.reply({ content: "An error occurred while assigning the role", flags: MessageFlags.Ephemeral });
+                    });
+            }
         } else {
-            member.roles.add(role);
-            return interaction.reply({ content: "You have been verified", flags: MessageFlags.Ephemeral });
+            return interaction.reply({ content: "There has been an error during the verification process.\nMaybe the role doesn't exist anymore?\nPlease create a new verification system with **/verify**", flags: MessageFlags.Ephemeral });
         }
-    } else {
-        return interaction.reply({ content: "There has been an error during the verification process.\nMaybe the role doesn't exist anymore?\nPlease create a new verification system with **/verify**", flags: MessageFlags.Ephemeral });
+    } catch (err) {
+        console.error(err);
+        interaction.reply({ content: "An error occurred while processing your request.", flags: MessageFlags.Ephemeral });
     }
 }
 
