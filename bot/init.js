@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const { TwitchApi } = require("./modules/twitch.js");
 const { TwitterAPI } = require("./modules/twitter.js");
+const { YoutubeAPI } = require("./modules/youtube.js");
 const { Timeout } = require("./modules/timeout.js");
 
 class BOT {
@@ -23,6 +24,7 @@ class BOT {
         this.uploader = uploader;
         if (this.config.twitch.enabled) this.twitch = new TwitchApi(this.config.twitch);
         if (this.config.twitter.enabled) this.twitter = new TwitterAPI(this.config.twitter, this.database);
+        if (this.config.youtube.enabled) this.youtube = new YoutubeAPI(this.config.youtube);
         // init database and commands
         this.database.init().then(() => this._buildCommands()).catch(err => console.error(err));
     }
@@ -88,6 +90,7 @@ class BOT {
             if (file === "twitter.js" && !this.config.twitter.enabled) continue;
             if (file === "twitch.js" && !this.config.twitch.enabled) continue;
             if (file === "clips.js" && !this.config.twitch.enabled) continue;
+            if (file === "youtube.js" && !this.config.youtube.enabled) continue;
             // require the command file
             console.log(`<!> Loading command file: ${file}`);
             const cmdFile = require(`./commands/${file}`);
@@ -106,6 +109,7 @@ class BOT {
             if (command.module.init) command.module.init(this.database, {
                 twitter: this.twitter || null,
                 twitch: this.twitch || null,
+                youtube: this.youtube || null,
                 cron: this.cron,
                 client: this.client,
                 guild: this.guild

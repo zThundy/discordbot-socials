@@ -69,6 +69,13 @@ async function execute(interaction, _, _, config) {
             value: "You can use this feature to configure in the channel where it's executed, an automatic announcement that will be sent every time someone is live on twitch.",
         });
     }
+
+    if (config.youtube.enabled) {
+        embed.fields.push({
+            name: "📜 YouTube (/youtube)",
+            value: "You can use this feature to configure in the channel where it's executed, an automatic announcement that will be sent every time a new video is uploaded to a monitored YouTube channel.",
+        });
+    }
     
     interaction.reply({ embeds: [embed] });
 };

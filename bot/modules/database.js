@@ -14,6 +14,9 @@ class SQL {
                 // twitch tables
                 await this._run("CREATE TABLE IF NOT EXISTS twicth (guildId TEXT, channelId TEXT, channelName TEXT, discordChannel TEXT, twitchId TEXT, clipsChannelId TEXT, enableClips INTEGER)");
                 await this._run("CREATE TABLE IF NOT EXISTS twicthClips (guildId TEXT, channelId TEXT, channelName TEXT, discordChannel TEXT, clipId TEXT, data TEXT)");
+                // youtube tables
+                await this._run("CREATE TABLE IF NOT EXISTS youtube (guildId TEXT, channelId TEXT, channelName TEXT, discordChannel TEXT)");
+                await this._run("CREATE TABLE IF NOT EXISTS youtubeVideos (guildId TEXT, channelId TEXT, channelName TEXT, videoId TEXT)");
                 // twitter tables
                 await this._run("CREATE TABLE IF NOT EXISTS twitter (guildId TEXT, channelId TEXT, accountName TEXT, discordChannel TEXT, roleId TEXT)");
                 await this._run("CREATE TABLE IF NOT EXISTS twitterTweets (guildId TEXT, channelId TEXT, accountName TEXT, tweetId TEXT)");
@@ -551,6 +554,53 @@ class SQL {
         console.log("<DATABASE> isTweetAlreadySend call");
         return new Promise((resolve, reject) => {
             this.db.get("SELECT * FROM twitterTweets WHERE guildId = ? AND channelId = ? AND accountName = ? AND tweetId = ?", [guildId, channelId, accountName, tweetId], (err, row) => {
+                if (err) reject(err);
+                if (row) resolve(true);
+                else resolve(false);
+            });
+        });
+    }
+
+    /* YouTube section */
+    getAllYoutubeChannels(guildId) {
+        console.log("<DATABASE> getAllYoutubeChannels call");
+        return new Promise((resolve, reject) => {
+            this.db.all("SELECT * FROM youtube WHERE guildId = ?", [guildId], (err, rows) => {
+                if (err) reject(err);
+                resolve(rows);
+            });
+        });
+    }
+
+    getYoutubeChannels(guildId, channelId) {
+        console.log("<DATABASE> getYoutubeChannels call");
+        return new Promise((resolve, reject) => {
+            this.db.all("SELECT * FROM youtube WHERE guildId = ? AND channelId = ?", [guildId, channelId], (err, rows) => {
+                if (err) reject(err);
+                resolve(rows);
+            });
+        });
+    }
+
+    createYoutubeChannel(guildId, channelId, channelName, discordChannel) {
+        console.log("<DATABASE> createYoutubeChannel call");
+        this.db.run("INSERT INTO youtube VALUES (?, ?, ?, ?)", [guildId, channelId, channelName, discordChannel]);
+    }
+
+    deleteYoutubeChannel(guildId, channelId, channelName) {
+        console.log("<DATABASE> deleteYoutubeChannel call");
+        this.db.run("DELETE FROM youtube WHERE guildId = ? AND channelId = ? AND channelName = ?", [guildId, channelId, channelName]);
+    }
+
+    insertNewYoutubeVideo(guildId, channelId, channelName, videoId) {
+        console.log("<DATABASE> insertNewYoutubeVideo call");
+        this.db.run("INSERT INTO youtubeVideos VALUES (?, ?, ?, ?)", [guildId, channelId, channelName, videoId]);
+    }
+
+    isYoutubeVideoAlreadySend(guildId, channelId, channelName, videoId) {
+        console.log("<DATABASE> isYoutubeVideoAlreadySend call");
+        return new Promise((resolve, reject) => {
+            this.db.get("SELECT * FROM youtubeVideos WHERE guildId = ? AND channelId = ? AND channelName = ? AND videoId = ?", [guildId, channelId, channelName, videoId], (err, row) => {
                 if (err) reject(err);
                 if (row) resolve(true);
                 else resolve(false);

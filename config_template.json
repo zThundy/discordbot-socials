@@ -20,6 +20,9 @@
         "apiSecret": "TWITTER_API_SECRET",
         "bearerToken": "TWITTER_BEARER_TOKEN"
     },
+    "youtube": {
+        "enabled": false
+    },
     "bots": [
         {
             "guild_id": "GUILD_ID"
