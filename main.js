@@ -1,4 +1,4 @@
-const { Client, Events, GatewayIntentBits, Collection } = require('discord.js');
+const { Client, Events, GatewayIntentBits, Collection, MessageFlags } = require('discord.js');
 const { Logger } = require("./bot/modules/logger.js");
 new Logger();
 
@@ -90,7 +90,7 @@ client.on(Events.InteractionCreate, (interaction) => {
         }
     } catch (err) {
         console.error(err);
-        interaction.reply({ content: "An error occurred while processing your request.", ephemeral: true });
+    interaction.reply({ content: "An error occurred while processing your request.", flags: MessageFlags.Ephemeral });
     }
 });
 
