@@ -119,5 +119,11 @@ const initBot = (guild) => {
     }
 };
 
-// login to discord
-client.login(config.token);
+client.login(config.token)
+    .then(() => {
+        console.log(">>> Discord login successful");
+    })
+    .catch(err => {
+        console.error("Discord login error:", err.message || err);
+        process.exit(1);
+    });
