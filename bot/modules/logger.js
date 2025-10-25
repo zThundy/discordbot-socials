@@ -5,18 +5,36 @@ class Logger {
     constructor() {
         this.fileStream = null;
         this.logStream = null;
-        this.logFile = path.join("./", "bot", "data", "logs", "log.txt");
+        this.logFile = path.join("./", "bot", "data", "logs", "stream.log");
         this.logFolder = path.join("./", "bot", "data", "logs");
 
-        this.log = this.log.bind(this);
-        console.log = this.log;
+        // keep original console methods if needed
+        this._origConsole = {
+            log: console.log.bind(console),
+            error: console.error ? console.error.bind(console) : console.log.bind(console),
+            warn: console.warn ? console.warn.bind(console) : console.log.bind(console),
+            info: console.info ? console.info.bind(console) : console.log.bind(console),
+            debug: console.debug ? console.debug.bind(console) : console.log.bind(console)
+        };
+
         this.checkFolder();
         this.checkFile();
         this.createStream();
 
         this.internalId = this.id();
 
-        console.log("------------------------- LOG STARTED -------------------------");
+        // bind internal writer
+        this._write = this._write.bind(this);
+
+        // override console methods to include log type
+        console.log = (...args) => this._write('INFO', ...args);
+        console.info = (...args) => this._write('INFO', ...args);
+        console.warn = (...args) => this._write('WARN', ...args);
+        console.error = (...args) => this._write('ERROR', ...args);
+        console.debug = (...args) => this._write('DEBUG', ...args);
+
+        // initial log
+        console.log('------------------------- LOG STARTED -------------------------');
     }
 
     // make id function where A are letters and 0 are numbers
@@ -63,37 +81,53 @@ class Logger {
         // print file rotation
         console.log(`Renaming log file to ${newFile}`);
         // end the stream of the current log file
-        logStream.end();
+        this.logStream.end();
         // rename the current log file to the new path
         fs.renameSync(this.logFile, newFile);
     }
-    
-    async log(...args) {
-        // check if args have array or object, if so, stringify it
-        args = args.map(arg => {
-            if (typeof arg === "object") {
-                return JSON.stringify(arg);
-            } else {
+
+    async _write(type, ...args) {
+        try {
+            // stringify objects
+            args = args.map(arg => {
+                if (typeof arg === 'object') {
+                    try { return JSON.stringify(arg); } catch (e) { return String(arg); }
+                }
                 return arg;
+            });
+
+            // add date to log as DD/MM/YYYY HH:MM:SS
+            const date = new Date();
+            const dateString = `[${date.getDate() < 10 ? '0' + date.getDate() : date.getDate()}/${date.getMonth() + 1 < 10 ? '0' + (date.getMonth() + 1) : date.getMonth() + 1}/${date.getFullYear()} ${date.getHours() < 10 ? '0' + date.getHours() : date.getHours()}:${date.getMinutes() < 10 ? '0' + date.getMinutes() : date.getMinutes()}:${date.getSeconds() < 10 ? '0' + date.getSeconds() : date.getSeconds()}]`;
+
+            // prefix with id, date and type
+            args.unshift(`${this.internalId} | ${dateString} | [${type}] |`);
+
+            const message = Array.from(args).join(' ') + '\r\n';
+
+            // write to appropriate stream
+            if (type === 'ERROR') {
+                try { process.stderr.write(message); } catch (e) { process.stdout.write(message); }
+            } else {
+                process.stdout.write(message);
             }
-        });
-        // add date to log as DD/MM/YYYY HH:MM:SS
-        const date = new Date();
-        // check if date is single digit, if so, add a 0 before it
-        var dateString = `[${date.getDate() < 10 ? "0" + date.getDate() : date.getDate()}/${date.getMonth() + 1 < 10 ? "0" + (date.getMonth() + 1) : date.getMonth() + 1}/${date.getFullYear()} ${date.getHours() < 10 ? "0" + date.getHours() : date.getHours()}:${date.getMinutes() < 10 ? "0" + date.getMinutes() : date.getMinutes()}:${date.getSeconds() < 10 ? "0" + date.getSeconds() : date.getSeconds()}]`;
-        args.unshift(this.internalId + " | " + dateString);
-        // create message
-        const message = Array.from(args).join(" ") + "\r\n"
-        // write to stdout
-        process.stdout.write(message);
-        // write to log file
-        this.logStream.write(message);
-        // check if file size is bigger than 50MB
-        if (this.logStream.bytesWritten > 50000000) {
-            // rotate log file
-            this.rotate();
+
+            // write to log file
+            if (this.logStream && this.logStream.writable) this.logStream.write(message);
+
+            // check if file size is bigger than 50MB
+            if (this.logStream && this.logStream.bytesWritten > 50000000) {
+                // rotate log file
+                this.rotate();
+            }
+        } catch (e) {
+            // fallback to original console.error if something goes wrong
+            try { this._origConsole.error('Logger write failed:', e); } catch (err) { /* swallow */ }
         }
     }
+
+    // backward compatible alias
+    log(...args) { return this._write('INFO', ...args); }
 }
 
 module.exports = { Logger };
