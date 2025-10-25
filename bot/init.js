@@ -1,7 +1,3 @@
-// ensure config exists before doing anything else
-const { ensureConfig } = require("./modules/configChecker.js");
-ensureConfig();
-
 const SQL = require("./modules/database.js");
 const fs = require("fs");
 const path = require("path");

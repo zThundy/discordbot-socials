@@ -2,6 +2,10 @@ const { Client, Events, GatewayIntentBits, Collection } = require('discord.js');
 const { Logger } = require("./bot/modules/logger.js");
 new Logger();
 
+// ensure config exists before doing anything else
+const { ensureConfig } = require("./bot/modules/configChecker.js");
+ensureConfig();
+
 // init uploader and cronjob
 const { Uploader } = require("./bot/modules/uploader.js");
 const { Cronjob } = require("./bot/modules/cron.js");
