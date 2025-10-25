@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionsBitField } = require('discord.js');
+const { SlashCommandBuilder, PermissionsBitField, MessageFlags } = require('discord.js');
 const { SelectMenu } = require('./elements/dropdown.js');
 const { Timeout } = require("../modules/timeout.js");
 const timeout = new Timeout();
@@ -71,7 +71,7 @@ async function execute(interaction, database) {
             changetagtwitter(interaction, database);
             break;
         default:
-            await interaction.reply({ content: "Unknown action", ephemeral: true });
+            await interaction.reply({ content: "Unknown action", flags: MessageFlags.Ephemeral });
             break;
     }
 }
@@ -91,7 +91,7 @@ async function listtwitter(interaction, database) {
     interaction.reply({
         content: "Here's a list of all the managed twitter accounts",
         components: [selectMenu],
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
     })
 }
 
@@ -108,7 +108,7 @@ async function removetwitter(interaction, database) {
     interaction.reply({
         content: "Select a twitter account to remove",
         components: [selectMenu],
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
     });
 }
 
@@ -117,7 +117,7 @@ async function addtwitter(interaction, database) {
     const channel = interaction.channel;
     interaction.reply({
         content: "Send the name of the twitter account you want to monitor\nor type **cancel** to cancel the operation",
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
     });
     const filter = m => m.author.id === interaction.user.id;
     const collector = interaction.channel.createMessageCollector({ filter, time: 15000 });
@@ -157,13 +157,13 @@ async function changetagtwitter(interaction, database) {
     interaction.reply({
         content: "Select the twitter account you want to edit",
         components: [selectMenu],
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
     });
 }
 
 async function interaction(interaction, database) {
     const userId = interaction.user.id;
-    if (timeout.checkTimeout(userId)) return interaction.reply({ content: "You're doing that too fast", ephemeral: true });
+    if (timeout.checkTimeout(userId)) return interaction.reply({ content: "You're doing that too fast", flags: MessageFlags.Ephemeral });
     // add timeout to the user
     timeout.addTimeout(userId);
 
@@ -177,13 +177,13 @@ async function interaction(interaction, database) {
     // check if the action contains "none"
     if (values[0] === "none") return interaction.reply({
         content: "No twitter accounts added",
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
     });
     switch (action) {
         case 'listtwitter':
             interaction.reply({
                 content: `Account link: <https://twitter.com/${values[0]}>\nDiscord channel: <#${values[1]}>`,
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
             break;
         case 'removetwitter':
@@ -197,13 +197,13 @@ async function interaction(interaction, database) {
             }
             interaction.reply({
                 content: `Removed **${values[0]}** from the list of managed twitter accounts`,
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
             break;
         case "changetagtwitter":
             interaction.reply({
                 content: "Please send the role that you want to use when a new post is published\nOr type **cancel** to cancel the operation\nOr type **delete** to remove the role",
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
             const filter = m => m.author.id === interaction.user.id;
             const collector = interaction.channel.createMessageCollector({ filter, time: 15000 });
@@ -267,7 +267,8 @@ async function init(database, extra) {
 
 const accounts = {};
 function _addAccount(account) {
-    var uid = _extra.cron.add(60 * 1000, (uid) => {
+    var uid = _extra.cron.add(15 * 60 * 1000, (uid) => {
+        console.log(`> _addAccount: Checking tweets for account: ${account.accountName}`);
         if (!accounts[uid]) return _extra.cron.remove(uid);
 
         var _account = accounts[uid];

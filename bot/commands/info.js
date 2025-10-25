@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, ActionRowBuilder } = require("discord.js");
+const { SlashCommandBuilder, ActionRowBuilder, MessageFlags } = require("discord.js");
 const { Button } = require("./elements/button.js");
 const { Timeout } = require("../modules/timeout.js");
 const timeout = new Timeout();
@@ -55,7 +55,7 @@ const _getFields = (client) => {
 
 async function execute(interaction, database, client) {
     const user = interaction.user.id;
-    if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", ephemeral: true });
+    if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", flags: MessageFlags.Ephemeral });
     // add timeout to the user
     timeout.addTimeout(user);
 

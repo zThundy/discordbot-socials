@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionsBitField } = require("discord.js");
+const { SlashCommandBuilder, PermissionsBitField, MessageFlags } = require("discord.js");
 const { SelectMenu } = require("./elements/dropdown.js");
 const { Button } = require("./elements/button.js");
 const { Timeout } = require("../modules/timeout.js");
@@ -64,7 +64,7 @@ async function cancel(interaction, database) {
         if (options.length == 0) {
             interaction.reply({
                 content: "There are no selectors in this server",
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
             return;
         }
@@ -80,7 +80,7 @@ async function cancel(interaction, database) {
         interaction.reply({
             content: "Select a role selector to delete it",
             components: [selectMenu],
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
         });
     }).catch((err) => {
         console.error(err);
@@ -93,7 +93,7 @@ async function add(interaction, database) {
 
     interaction.reply({
         content: "Please wait...",
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
     });
 
     // ask the user to type the title and the description of the selector
@@ -193,7 +193,7 @@ async function create(interaction, database) {
         if (options.length == 0) {
             interaction.reply({
                 content: "There are no selectors in this server",
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
             return;
         }
@@ -209,7 +209,7 @@ async function create(interaction, database) {
         interaction.reply({
             content: "Select a role selector to send in the current channel",
             components: [selectMenu],
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
         });
     }).catch((err) => {
         console.error(err);
@@ -219,7 +219,7 @@ async function create(interaction, database) {
 // interaction command
 async function interaction(interaction, database) {
     const user = interaction.user.id;
-    if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", ephemeral: true });
+    if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", flags: MessageFlags.Ephemeral });
     // add timeout to the user
     timeout.addTimeout(user);
 
@@ -246,9 +246,9 @@ async function deletemultiroleselector(interaction, database) {
     // get the selector id from the interaction value
     const selectorId = interaction.values[0];
     // defer interaction
-    interaction.reply({ content: "Deleting selector...", ephemeral: true }).then(() => {
+    interaction.reply({ content: "Deleting selector...", flags: MessageFlags.Ephemeral }).then(() => {
         database.deleteMultiSelector(guild.id, selectorId).then(() => {
-            interaction.editReply({ content: "Selector deleted", components: [], ephemeral: true });
+            interaction.editReply({ content: "Selector deleted", components: [], flags: MessageFlags.Ephemeral });
         }).catch(console.error);
     }).catch(console.error);
 }
@@ -259,7 +259,7 @@ async function multirolesbutton(interaction, database) {
     const selectorId = interaction.customId.split(";")[2]
     // defer interaction
     console.log(` > Removing all multiroles from ${interaction.user.username} (${interaction.user.id})`);
-    interaction.reply({ content: "Removing all multiroles...", ephemeral: true }).then(() => {
+    interaction.reply({ content: "Removing all multiroles...", flags: MessageFlags.Ephemeral }).then(() => {
         database.getMultiRolesFromSelectorId(guild.id, selectorId).then(async (result) => {
             // check if member has already the role
             for (var i in result.roles) {
@@ -269,7 +269,7 @@ async function multirolesbutton(interaction, database) {
                 }
             }
             // for (var i in result.roles) await interaction.member.roles.remove(result.roles[i].roleId);
-            interaction.editReply({ content: "All multiroles removed", ephemeral: true });
+            interaction.editReply({ content: "All multiroles removed", flags: MessageFlags.Ephemeral });
         }).catch(console.error);
     }).catch(console.error);
 }
@@ -284,7 +284,7 @@ async function multiroles(interaction, database) {
 
     database.checkIfMultiSelectorExists(guild.id, selectorId).then((exists) => {
         if (!exists) {
-            interaction.reply({ content: "This selector doesn't exist anymore", ephemeral: true });
+            interaction.reply({ content: "This selector doesn't exist anymore", flags: MessageFlags.Ephemeral });
             return;
         }
 
@@ -297,7 +297,7 @@ async function multiroles(interaction, database) {
                 }
             }
 
-            interaction.reply({ content: "Adding selected roles, please wait...", ephemeral: true }).then(() => {
+            interaction.reply({ content: "Adding selected roles, please wait...", flags: MessageFlags.Ephemeral }).then(() => {
                 interaction.values.forEach((value) => {
                     const roleId = value.split(";")[0];
                     guild.roles.fetch(roleId).then((role) => {
@@ -317,7 +317,7 @@ async function multiroleselector(interaction, database) {
     // get the selector and the roles
     database.getMultiRolesFromSelectorId(guild.id, selectorId).then(async (result) => {
         if (result.roles.length == 0)
-            return interaction.reply({ content: "There has been an error during the creation of this selector\nPlease delete it and create it again.", ephemeral: true });
+            return interaction.reply({ content: "There has been an error during the creation of this selector\nPlease delete it and create it again.", flags: MessageFlags.Ephemeral });
         const selectors = [];
         for (var i in result.roles) {
             selectors.push({

@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionsBitField } = require("discord.js");
+const { SlashCommandBuilder, PermissionsBitField, MessageFlags } = require("discord.js");
 const { SelectMenu } = require("./elements/dropdown.js");
 const { Timeout } = require("../modules/timeout.js");
 const timeout = new Timeout();
@@ -40,18 +40,18 @@ async function execute(interaction, database) {
                 .setMaxValues(1)
                 .addOptions(await _getAllTwitchChannels(interaction, database))
                 .build();
-        
+
             interaction.reply({
                 content: "Here's a list of all the twitch channels where you can enable or disable the clips notifications.\nSelect one from the list to toggle the notifications in the current channel.",
                 components: [selectMenu],
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
             break;
         case 'setchannelclips':
             setchannelclips(interaction, database);
             break;
         default:
-            interaction.reply({ content: "Invalid action", ephemeral: true });
+            interaction.reply({ content: "Invalid action", flags: MessageFlags.Ephemeral });
             break;
     }
 }
@@ -71,16 +71,16 @@ async function setchannelclips(interaction, database) {
     interaction.reply({
         content: "Select a twitch channel to set latest clips notifications",
         components: [selectMenu],
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
     });
 }
 
 async function interaction(interaction, database) {
     const user = interaction.user.id;
-    if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", ephemeral: true });
+    if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", flags: MessageFlags.Ephemeral });
     // add timeout to the user
     timeout.addTimeout(user);
-    
+
     console.log(" > Twitch clips interaction received");
     const guild = interaction.guild;
     // const channel = interaction.channel;
@@ -91,7 +91,7 @@ async function interaction(interaction, database) {
     // check if the action contains "none"
     if (values[0] === "none") return interaction.reply({
         content: "No channels added",
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
     });
     switch (action) {
         case 'toggletwitchclips':
@@ -99,7 +99,7 @@ async function interaction(interaction, database) {
             interaction.reply({
                 content: "Clips notifications are now " + (values[2] === 1 ? "disabled" : "enabled") + " for " + values[0],
                 components: [],
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
             database.updateTwitchClips(guild.id, values[0], values[2] === 0 ? 1 : 0);
             break;
@@ -107,11 +107,11 @@ async function interaction(interaction, database) {
             database.updateTwitchClipsChannel(guild.id, values[0], values[1]);
             interaction.reply({
                 content: `Updated latest clips notifications channel for **${values[0]}** to <#${values[1]}>`,
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
             break;
         default:
-            await interaction.reply({ content: "Unknown action", ephemeral: true });
+            await interaction.reply({ content: "Unknown action", flags: MessageFlags.Ephemeral });
             break;
     }
 }
@@ -132,9 +132,9 @@ async function init(database, extra) {
 
 function _addClips(channel) {
     var uid = _extra.cron.add(20 * 60 * 1000, (uid) => {
-    // var uid = _extra.cron.add(5000, (uid) => {
+        // var uid = _extra.cron.add(5000, (uid) => {
         if (!channels[uid]) return _extra.cron.remove(uid);
-        
+
         _extra.database.getChannelsWithEnabledClips(channels[uid].guildId).then((_channels) => {
             // filter channels that do not exists anymore in the channels constant
             const c = _channels.filter(channel => { return channel.channelName !== channels[uid].channelName });

@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require("discord.js");
+const { SlashCommandBuilder, MessageFlags } = require("discord.js");
 const { Timeout } = require("../modules/timeout.js");
 const timeout = new Timeout();
 
@@ -13,7 +13,7 @@ function build() {
 
 async function execute(interaction, _, _, config) {
     const user = interaction.user.id;
-    if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", ephemeral: true });
+    if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", flags: MessageFlags.Ephemeral });
     // add timeout to the user
     timeout.addTimeout(user);
 

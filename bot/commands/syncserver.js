@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionsBitField } = require("discord.js");
+const { SlashCommandBuilder, PermissionsBitField, MessageFlags } = require("discord.js");
 
 const internalId = "d18ace6d61530a704a55";
 
@@ -39,34 +39,34 @@ async function execute(interaction, database) {
     const guild = interaction.guild;
     const guildRole = guild.roles.cache.get(role);
     if (!guildRole) {
-        interaction.reply({ content: "Invalid ID provided.", ephemeral: true });
+        interaction.reply({ content: "Invalid ID provided.", flags: MessageFlags.Ephemeral });
         return;
     }
 
     const otherGuild = interaction.client.guilds.cache.get(server);
     if (!otherGuild) {
-        interaction.reply({ content: "The server you provided is not valid.", ephemeral: true });
+        interaction.reply({ content: "The server you provided is not valid.", flags: MessageFlags.Ephemeral });
         return;
     }
 
     const otherGuildRole = otherGuild.roles.cache.get(otherRole);
     if (!guildRole || !otherGuildRole) {
-        interaction.reply({ content: "The role(s) you provided are not valid.", ephemeral: true });
+        interaction.reply({ content: "The role(s) you provided are not valid.", flags: MessageFlags.Ephemeral });
         return;
     }
 
     const syncRole = await database.getSyncRole(guild.id, role, server);
     if (syncRole.length > 0) {
-        interaction.reply({ content: "The role you provided is already synced.", ephemeral: true });
+        interaction.reply({ content: "The role you provided is already synced.", flags: MessageFlags.Ephemeral });
         return;
     }
 
     // add role to database
     database.addSyncRole(guild.id, role, server, otherRole).then(() => {
-        interaction.reply({ content: "The role has been synced.", ephemeral: true });
+        interaction.reply({ content: "The role has been synced.", flags: MessageFlags.Ephemeral });
     }).catch(err => {
         console.error(err);
-        interaction.reply({ content: "An error occurred while syncing the role.", ephemeral: true });
+        interaction.reply({ content: "An error occurred while syncing the role.", flags: MessageFlags.Ephemeral });
     });
 }
 

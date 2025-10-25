@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionsBitField } = require("discord.js");
+const { SlashCommandBuilder, PermissionsBitField, MessageFlags } = require("discord.js");
 const { SelectMenu } = require("./elements/dropdown.js");
 const { Timeout } = require("../modules/timeout.js");
 const timeout = new Timeout();
@@ -67,7 +67,7 @@ async function execute(interaction, database) {
         case 'addtwitch':
             interaction.reply({
                 content: "Send the name of the channel you want to add to the list",
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
             const filter = m => m.author.id === interaction.user.id;
             const collector = interaction.channel.createMessageCollector({ filter, time: 15000 });
@@ -88,7 +88,7 @@ async function execute(interaction, database) {
             removetwitch(interaction, database);
             break;
         default:
-            await interaction.reply({ content: "Unknown action", ephemeral: true });
+            await interaction.reply({ content: "Unknown action", flags: MessageFlags.Ephemeral });
             break;
     }
 }
@@ -105,7 +105,7 @@ async function listtwich(interaction, database) {
     interaction.reply({
         content: "Here's a list of all the twitch channels",
         components: [selectMenu],
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
     })
 }
 
@@ -121,13 +121,13 @@ async function removetwitch(interaction, database) {
     interaction.reply({
         content: "Select a channel to remove",
         components: [selectMenu],
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
     });
 }
 
 async function interaction(interaction, database) {
     const userId = interaction.user.id;
-    if (timeout.checkTimeout(userId)) return interaction.reply({ content: "You're doing that too fast", ephemeral: true });
+    if (timeout.checkTimeout(userId)) return interaction.reply({ content: "You're doing that too fast", flags: MessageFlags.Ephemeral });
     // add timeout to the user
     timeout.addTimeout(userId);
 
@@ -141,13 +141,13 @@ async function interaction(interaction, database) {
     // check if the action contains "none"
     if (values[0] === "none") return interaction.reply({
         content: "No channels added",
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
     });
     switch (action) {
         case 'listtwich':
             interaction.reply({
                 content: `Channel link: <https://twitch.tv/${values[0]}>\nDiscord channel: <#${values[1]}>`,
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
             break;
         case 'removetwitch':
@@ -161,11 +161,11 @@ async function interaction(interaction, database) {
             }
             interaction.reply({
                 content: `Removed **${values[0]}** from the list of twitch channels`,
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
             break;
         default:
-            await interaction.reply({ content: "Unknown action", ephemeral: true });
+            await interaction.reply({ content: "Unknown action", flags: MessageFlags.Ephemeral });
             break;
     }
 }

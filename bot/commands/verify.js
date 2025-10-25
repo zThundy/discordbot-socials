@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionsBitField } = require("discord.js");
+const { SlashCommandBuilder, PermissionsBitField, MessageFlags } = require("discord.js");
 const { Button } = require("./elements/button.js");
 const { Timeout } = require("../modules/timeout.js");
 const timeout = new Timeout();
@@ -28,7 +28,7 @@ function build() {
 
 function execute(interaction, database) {
     const user = interaction.user.id;
-    if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", ephemeral: true });
+    if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", flags: MessageFlags.Ephemeral });
     // add timeout to the user
     timeout.addTimeout(user);
 
@@ -82,7 +82,7 @@ function add(interaction, database) {
                 _messages.forEach(async (msg) => await msg.delete());
             });
         } else {
-            interaction.reply({ content: "The verification system is already set up", ephemeral: true });
+            interaction.reply({ content: "The verification system is already set up", flags: MessageFlags.Ephemeral });
         }
     });
 }
@@ -92,9 +92,9 @@ function cancel(interaction, database) {
     database.getVerify(guild.id).then(async (verify) => {
         if (verify) {
             database.deleteVerify(guild.id);
-            interaction.reply({ content: "The verification system has been deleted", ephemeral: true });
+            interaction.reply({ content: "The verification system has been deleted", flags: MessageFlags.Ephemeral });
         } else {
-            interaction.reply({ content: "The verification system is not set up", ephemeral: true });
+            interaction.reply({ content: "The verification system is not set up", flags: MessageFlags.Ephemeral });
         }
     });
 }
@@ -125,10 +125,10 @@ function create(interaction, database) {
 
                 interaction.reply({ embeds: [embed], components: [verify] });
             } else {
-                interaction.reply({ content: "There has been an error during the creation of the verification system.\nMaybe the role doesn't exist anymore?\nPlease create a new verification system with **/verify**", ephemeral: true });
+                interaction.reply({ content: "There has been an error during the creation of the verification system.\nMaybe the role doesn't exist anymore?\nPlease create a new verification system with **/verify**", flags: MessageFlags.Ephemeral });
             }
         } else {
-            interaction.reply({ content: "Please create a verification system for this guild first", ephemeral: true });
+            interaction.reply({ content: "Please create a verification system for this guild first", flags: MessageFlags.Ephemeral });
         }
     });
 }
@@ -136,7 +136,7 @@ function create(interaction, database) {
 async function interaction(interaction, database) {
     const user = interaction.user.id;
     const guild = interaction.guild;
-    if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", ephemeral: true });
+    if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", flags: MessageFlags.Ephemeral });
     // add timeout to the user
     timeout.addTimeout(user);
     // check if user has the role already
@@ -146,13 +146,13 @@ async function interaction(interaction, database) {
     if (role) {
         const member = interaction.member;
         if (member.roles.cache.has(roleID)) {
-            return interaction.reply({ content: "You already have the role", ephemeral: true });
+            return interaction.reply({ content: "You already have the role", flags: MessageFlags.Ephemeral });
         } else {
             member.roles.add(role);
-            return interaction.reply({ content: "You have been verified", ephemeral: true });
+            return interaction.reply({ content: "You have been verified", flags: MessageFlags.Ephemeral });
         }
     } else {
-        return interaction.reply({ content: "There has been an error during the verification process.\nMaybe the role doesn't exist anymore?\nPlease create a new verification system with **/verify**", ephemeral: true });
+        return interaction.reply({ content: "There has been an error during the verification process.\nMaybe the role doesn't exist anymore?\nPlease create a new verification system with **/verify**", flags: MessageFlags.Ephemeral });
     }
 }
 

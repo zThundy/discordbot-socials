@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionsBitField } = require("discord.js");
+const { SlashCommandBuilder, PermissionsBitField, MessageFlags } = require("discord.js");
 const { Timeout } = require("../modules/timeout.js");
 const timeout = new Timeout();
 
@@ -33,7 +33,7 @@ async function execute(interaction, database) {
         member.setNickname(null);
         interaction.reply({
             content: "Nickname reset to default",
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
         });
         // save it to database
         database.updateNickname(guild.id, null);
@@ -41,7 +41,7 @@ async function execute(interaction, database) {
         member.setNickname(nickname);
         interaction.reply({
             content: "Nickname set to " + nickname,
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
         });
         // save it to database
         database.updateNickname(guild.id, nickname);
