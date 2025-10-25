@@ -14,6 +14,12 @@ class Uploader {
             console.log("<EXPRESS> Listening for web request on port " + this.port);
         });
 
+        // check if home folder exists, if not create it
+        if (!fs.existsSync(this.homePath)) {
+            fs.mkdirSync(this.homePath, { recursive: true });
+            console.log("<UPLOADER> Created home folder: " + this.homePath);
+        }
+
         // every 30 minutes, check creation date, if older than 20 days
         // delete the file
         if (config.uploader.deleteFiles)
