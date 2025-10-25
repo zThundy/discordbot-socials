@@ -1,5 +1,6 @@
 const path = require("path");
 const fs = require("fs");
+const util = require('util');
 
 class Logger {
     constructor() {
@@ -88,10 +89,24 @@ class Logger {
 
     async _write(type, ...args) {
         try {
-            // stringify objects
+            // stringify objects; treat Error specially because JSON.stringify(Error) => {}
             args = args.map(arg => {
+                if (arg instanceof Error) {
+                    // include stack if available
+                    return arg.stack || arg.toString();
+                }
                 if (typeof arg === 'object') {
-                    try { return JSON.stringify(arg); } catch (e) { return String(arg); }
+                    try {
+                        // if it looks like an Error (has stack/message) but is not an instanceof Error,
+                        // prefer printing the stack to avoid '{}'
+                        if (arg && (arg.stack || arg.message)) {
+                            return arg.stack || arg.message;
+                        }
+                        // util.inspect handles non-enumerable props and circular refs nicely
+                        return util.inspect(arg, { depth: 4, colors: false });
+                    } catch (e) {
+                        return String(arg);
+                    }
                 }
                 return arg;
             });
