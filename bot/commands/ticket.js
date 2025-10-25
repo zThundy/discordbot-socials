@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionsBitField, ActionRowBuilder, ChannelType, EmbedBuilder } = require("discord.js");
+const { SlashCommandBuilder, PermissionsBitField, ActionRowBuilder, ChannelType, EmbedBuilder, MessageFlags } = require("discord.js");
 const { Modal } = require("./elements/modal.js");
 const { Button } = require("./elements/button.js");
 const { MakeHTML } = require("../modules/makehtml.js");
@@ -151,7 +151,7 @@ function execute(interaction, database) {
 // interaction command
 async function interaction(interaction, database, _, config) {
     const userId = interaction.user.id;
-    if (timeout.checkTimeout(userId)) return interaction.reply({ content: "You're doing that too fast", ephemeral: true });
+    if (timeout.checkTimeout(userId)) return interaction.reply({ content: "You're doing that too fast", flags: MessageFlags.Ephemeral });
     // add timeout to the user
     timeout.addTimeout(userId);
 
@@ -191,7 +191,7 @@ async function interaction(interaction, database, _, config) {
             const title = interaction.fields.getTextInputValue('titleofquestion');
             const description = interaction.fields.getTextInputValue('descriptionofquestion');
             
-            interaction.reply({ content: "Opening ticket...", ephemeral: true }).then(() => {
+            interaction.reply({ content: "Opening ticket...", flags: MessageFlags.Ephemeral }).then(() => {
                 database.getTicketConfig(guild.id).then((res) => {
                     if (res) {
                         database.getLastTicketsId(guild.id).then(id => {
@@ -263,7 +263,7 @@ async function interaction(interaction, database, _, config) {
                                 topic: ticketId,
                                 parent: guild.channels.cache.find(c => c.name.toLowerCase().trim() === "tickets").id
                             }).then(channel => {
-                                interaction.editReply({ content: "📨 <#" + channel.id + "> opened!", components: [], ephemeral: true }).catch(console.error);
+                                interaction.editReply({ content: "📨 <#" + channel.id + "> opened!", components: [], flags: MessageFlags.Ephemeral }).catch(console.error);
                                 database.createTicket(id, guild.id, channel.id, user.id, ticketId, title, description);
 
                                 const button = new Button()
@@ -350,6 +350,7 @@ function message(event, message, newMessage, { database, uploader, config }) {
     if (message.channel.name.includes("ticket-") && message.channel.topic) {
         message.guild.members.fetch(message.author.id)
             .then(m => {
+                console.log("<TICKET> Logging message in ticket " + message.channel.name);
                 const dateFormat = message.createdAt;
                 var date = ('0' + dateFormat.getDate()).slice(-2) +
                     "/" + ('0' + (dateFormat.getMonth() + 1)).slice(-2) +
@@ -363,8 +364,13 @@ function message(event, message, newMessage, { database, uploader, config }) {
                 const attachments = [];
 
                 if (message.attachments.size > 0) {
+                    console.log("<TICKET> Found attachments in message");
                     message.attachments.forEach((attachment) => {
-                        if ((/^https?:\/\/.+\jpg|jpeg|png|webp|avif|gif|svg$/i).test(attachment.url)) {
+                        console.log("<TICKET> Found attachment:", attachment.url, attachment.name, attachment.contentType);
+                        
+                        // images
+                        // test for urls ending with .jpg, .jpeg, .png, .webp, .avif, .gif, .svg or names with image content type
+                        if ((/^https?:\/\/.+\jpg|jpeg|png|webp|avif|gif|svg$/i).test(attachment.url) || (attachment.contentType && attachment.contentType.startsWith("image/"))) {
                             type = "image";
                             attachments.push({
                                 file: uploader.downloadAttachment(attachment.url),
@@ -372,13 +378,26 @@ function message(event, message, newMessage, { database, uploader, config }) {
                             });
                         }
 
-                        if ((/^(http(s)?:\/\/|www\.).*(\.mp4|\.mkv)$/gmi).test(attachment.url)) {
+                        // videos
+                        // test for urls ending with .mp4, .mkv or names with video content type
+                        if ((/^(http(s)?:\/\/|www\.).*(\.mp4|\.mkv)$/gmi).test(attachment.url) || (attachment.contentType && attachment.contentType.startsWith("video/"))) {
                             type = "video";
                             attachments.push({
                                 file: uploader.downloadAttachment(attachment.url),
                                 type
                             });
                         }
+
+                        // audio files
+                        // test for urls ending with .mp3, .wav, .m4a, .ogg, .aac or names with audio content type
+                        else if ((/^(http(s)?:\/\/|www\.).*(\.mp3|\.wav|\.m4a|\.ogg|\.aac)$/gmi).test(attachment.url) || (attachment.contentType && attachment.contentType.startsWith("audio/"))) {
+                            type = "audio";
+                            attachments.push({
+                                file: uploader.downloadAttachment(attachment.url),
+                                type
+                            });
+                        }
+                        console.log("<TICKET> Found attachment of type " + type);
                     });
                 }
 

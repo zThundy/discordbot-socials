@@ -51,6 +51,17 @@ class MakeHTML {
                     </div>
                 </div>
             `
+        } else if (message.messageType === "audio") {
+            messageTemplate = `
+            <div class="messages">
+                <div class="message-container">
+                    <div class="message-author-icon"><img src="{authorProfilePicture}" /></div>
+                    <div class="message-content-container">
+                        <div class="message-author"><span class="message-author-name" style="color: {roleColor}">{messageAuthor}</span> <span class="message-author-date">{messageDate}</span></div>
+                        <div class="message-content"><audio controls><source src="{messageContent}" type="audio/mpeg"></audio></div>
+                    </div>
+                </div>
+            `
         }
 
         messageTemplate = messageTemplate.replace("{authorProfilePicture}", message.authorProfile);
