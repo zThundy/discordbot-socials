@@ -17,6 +17,10 @@ class SQL {
                 // twitter tables
                 await this._run("CREATE TABLE IF NOT EXISTS twitter (guildId TEXT, channelId TEXT, accountName TEXT, discordChannel TEXT, roleId TEXT)");
                 await this._run("CREATE TABLE IF NOT EXISTS twitterTweets (guildId TEXT, channelId TEXT, accountName TEXT, tweetId TEXT)");
+                // store full tweet JSON data (one row per tweetId). fetchedAt is ms since epoch
+                await this._run("CREATE TABLE IF NOT EXISTS twitterData (guildId TEXT, channelId TEXT, accountName TEXT, tweetId TEXT PRIMARY KEY, data TEXT, fetchedAt INTEGER)");
+                // cache for twitter users: username -> json data, cachedAt timestamp (ms since epoch)
+                await this._run("CREATE TABLE IF NOT EXISTS twitterUsers (username TEXT PRIMARY KEY, data TEXT, cachedAt INTEGER)");
                 // roles selector tables
                 await this._run("CREATE TABLE IF NOT EXISTS rolesSelector (guildId TEXT, selectorId TEXT, embed TEXT)");
                 await this._run("CREATE TABLE IF NOT EXISTS roles (guildId TEXT, selectorId TEXT, roleId TEXT, roleName TEXT)");
@@ -552,6 +556,75 @@ class SQL {
                 else resolve(false);
             });
         });
+    }
+
+    // Persist full tweet JSON for later use / inspection
+    saveTweetData(guildId, channelId, accountName, tweetId, data) {
+        console.log("<DATABASE> saveTweetData call");
+        try {
+            const str = JSON.stringify(data);
+            const ts = Date.now();
+            this.db.run("INSERT OR REPLACE INTO twitterData (guildId, channelId, accountName, tweetId, data, fetchedAt) VALUES (?, ?, ?, ?, ?, ?)", [guildId, channelId, accountName, tweetId, str, ts]);
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    // Retrieve latest stored tweet for an account (or null)
+    getLatestStoredTweet(guildId, channelId, accountName) {
+        console.log("<DATABASE> getLatestStoredTweet call");
+        return new Promise((resolve, reject) => {
+            this.db.get("SELECT * FROM twitterData WHERE guildId = ? AND channelId = ? AND accountName = ? ORDER BY fetchedAt DESC LIMIT 1", [guildId, channelId, accountName], (err, row) => {
+                if (err) return reject(err);
+                if (!row) return resolve(null);
+                try {
+                    row.data = JSON.parse(row.data);
+                } catch (e) { /* ignore parse errors */ }
+                resolve(row);
+            });
+        });
+    }
+
+    // Retrieve stored tweet by tweetId
+    getStoredTweetById(tweetId) {
+        console.log("<DATABASE> getStoredTweetById call");
+        return new Promise((resolve, reject) => {
+            this.db.get("SELECT * FROM twitterData WHERE tweetId = ?", [tweetId], (err, row) => {
+                if (err) return reject(err);
+                if (!row) return resolve(null);
+                try { row.data = JSON.parse(row.data); } catch (e) {}
+                resolve(row);
+            });
+        });
+    }
+
+    // Twitter user cache
+    getTwitterUser(username) {
+        console.log("<DATABASE> getTwitterUser call");
+        return new Promise((resolve, reject) => {
+            this.db.get("SELECT data, cachedAt FROM twitterUsers WHERE username = ?", [username], (err, row) => {
+                if (err) return reject(err);
+                if (!row) return resolve(null);
+                try {
+                    const parsed = JSON.parse(row.data);
+                    resolve({ data: parsed, cachedAt: row.cachedAt });
+                } catch (e) {
+                    // if parsing fails, still return raw data
+                    resolve({ data: row.data, cachedAt: row.cachedAt });
+                }
+            });
+        });
+    }
+
+    saveTwitterUser(username, data) {
+        console.log("<DATABASE> saveTwitterUser call");
+        try {
+            const str = JSON.stringify(data);
+            const ts = Date.now();
+            this.db.run("INSERT OR REPLACE INTO twitterUsers (username, data, cachedAt) VALUES (?, ?, ?)", [username, str, ts]);
+        } catch (e) {
+            console.error(e);
+        }
     }
 
     /**

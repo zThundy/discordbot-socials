@@ -22,7 +22,7 @@ class BOT {
         this.cron = cron;
         this.uploader = uploader;
         if (this.config.twitch.enabled) this.twitch = new TwitchApi(this.config.twitch);
-        if (this.config.twitter.enabled) this.twitter = new TwitterAPI(this.config.twitter);
+        if (this.config.twitter.enabled) this.twitter = new TwitterAPI(this.config.twitter, this.database);
         // init database and commands
         this.database.init().then(() => this._buildCommands()).catch(err => console.error(err));
     }
@@ -79,7 +79,7 @@ class BOT {
         // hard coded cause i'm not bothered enough to make it configurable
         if (!fs.existsSync(path.resolve("./", "bot", "images"))) fs.mkdirSync(path.resolve("./", "bot", "images"));
     }
-    
+
     _buildCommands() {
         // read all the commands js files in the commands folder
         const commandFiles = fs.readdirSync("./bot/commands").filter(file => file.endsWith(".js"));
@@ -89,7 +89,12 @@ class BOT {
             if (file === "twitch.js" && !this.config.twitch.enabled) continue;
             if (file === "clips.js" && !this.config.twitch.enabled) continue;
             // require the command file
+            console.log(`<!> Loading command file: ${file}`);
             const cmdFile = require(`./commands/${file}`);
+            if (!cmdFile.build) {
+                console.warn(`<!> Command file ${file} is missing the build() function. Skipping loading this command.`);
+                continue;
+            }
             const command = cmdFile.build(this.guild);
             // register the commands in the application
             this.client.application.commands.create(command);

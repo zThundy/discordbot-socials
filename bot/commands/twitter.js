@@ -268,34 +268,64 @@ async function init(database, extra) {
 const accounts = {};
 function _addAccount(account) {
     var uid = _extra.cron.add(15 * 60 * 1000, (uid) => {
+        // var uid = _extra.cron.add(5 * 1000, (uid) => {
         console.log(`> _addAccount: Checking tweets for account: ${account.accountName}`);
         if (!accounts[uid]) return _extra.cron.remove(uid);
 
         var _account = accounts[uid];
-        _extra.twitter.getLastTweet(_account.accountName).then((tweets) => {
-            if (tweets.length > 0) {
-                var lastTweet = tweets[0];
-                // yolo!!! query at every check cause i'm too lazy to do something good
-                if (!_extra.database.isTweetAlreadySend(_account.guildId, _account.channelId, _account.accountName, String(lastTweet.id))) {
-                    _extra.client.channels.fetch(_account.channelId).then((channel) => {
-                        const embeds = _extra.twitter.getEmbed(lastTweet);
-                        if (_account.roleId) {
-                            channel.send({
-                                content: `<@&${_account.roleId}> **${_account.accountName}** posted a new tweet!\n\n<${embeds[0].url}>`,
-                                embeds
-                            })
-                        } else {
-                            channel.send({
-                                content: `@everyone **${_account.accountName}** posted a new tweet!\n\n<${embeds[0].url}>`,
-                                embeds
-                            });
+        _extra.twitter.getLastTweet(_account.accountName).then(async (tweets) => {
+            try {
+                console.log("> Fetched tweets:", tweets);
+                if (!tweets || tweets.length === 0) return;
+
+                // Persist all fetched tweets into twitterData (avoid blocking on DB writes)
+                for (const t of tweets) {
+                    try {
+                        const tweetId = String(t.id || t.id_str || '');
+                        if (tweetId && typeof _extra.database.saveTweetData === 'function') {
+                            _extra.database.saveTweetData(_account.guildId, _account.channelId, _account.accountName, tweetId, t);
                         }
-                        // add the tweet to the database so we don't send it again
-                        _extra.database.insertNewTweet(_account.guildId, _account.channelId, _account.accountName, String(lastTweet.id));
-                    });
+                    } catch (e) {
+                        console.error('Failed to save tweet data to DB', e && e.message ? e.message : e);
+                    }
                 }
+
+                // Find the newest tweet that has NOT been sent yet (tweets are returned newest-first)
+
+                // send this tweet and mark as sent
+                _extra.client.channels.fetch(_account.channelId)
+                    .then(async (channel) => {
+                        for (const t of tweets) {
+                            const tweetId = String(t.id || t.id_str || '');
+                            if (!tweetId) continue;
+                            const alreadySent = await _extra.database.isTweetAlreadySend(_account.guildId, _account.channelId, _account.accountName, tweetId);
+                            console.log(`> Checking tweet ID ${tweetId}, alreadySent=${alreadySent}`);
+                            if (!alreadySent) {
+                                const embeds = _extra.twitter.getEmbed(t);
+                                if (_account.roleId) {
+                                    channel.send({
+                                        content: `<@&${_account.roleId}> **${_account.accountName}** posted a new tweet!\n\n<${embeds[0].url}>`,
+                                        embeds
+                                    }).catch(console.error);
+                                } else {
+                                    channel.send({
+                                        content: `@everyone **${_account.accountName}** posted a new tweet!\n\n<${embeds[0].url}>`,
+                                        embeds
+                                    }).catch(console.error);
+                                }
+                                // mark as sent so we don't resend
+                                _extra.database.insertNewTweet(_account.guildId, _account.channelId, _account.accountName, tweetId);
+
+                                // removed break so that we sent all the last tweets
+                                // break; // only send the newest unsent tweet
+                            }
+                        }
+                    })
+                    .catch(console.error);
+            } catch (e) {
+                console.error('Error processing tweets for account', _account.accountName, e && e.message ? e.message : e);
             }
-        });
+        }).catch(err => console.error(err));
         accounts[uid] = _account;
     });
 
