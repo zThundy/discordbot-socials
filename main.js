@@ -76,6 +76,7 @@ client.on(Events.MessageUpdate, (oldM, newM) => {
 
 client.on(Events.InteractionCreate, (interaction) => {
     try {
+        console.log(">>> Interaction received:", interaction);
         const guild = interaction.guild;
         const bot = bots[guild.id];
         if (!bot) return;
@@ -84,9 +85,20 @@ client.on(Events.InteractionCreate, (interaction) => {
         } else if (interaction.isButton()) {
             bot.event("button", interaction);
         } else if (interaction.isStringSelectMenu()) {
+            // generic string select
             bot.event("select", interaction);
+        } else if (interaction.isRoleSelectMenu && interaction.isRoleSelectMenu()) {
+            // role select menus
+            bot.event("roleSelect", interaction);
+        } else if (interaction.isChannelSelectMenu && interaction.isChannelSelectMenu()) {
+            // channel select menus
+            bot.event("channelSelect", interaction);
         } else if (interaction.isModalSubmit()) {
             bot.event("modal", interaction);
+        } else if (interaction.isContextMenuCommand()) {
+            bot.event("context", interaction);
+        } else {
+            console.log("Unknown interaction type:", interaction.type);
         }
     } catch (err) {
         console.error(err);

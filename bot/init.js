@@ -37,13 +37,18 @@ class BOT {
                 if (args[0].commandName === string)
                     if (command.module.execute) command.module.execute(args[0], this.database, this.client, this.config);
             });
-        } else if (event === "select" || event === "modal" || event === "button") {
+        } else if (event === "select" || event === "modal" || event === "button" || event === "roleSelect" || event === "channelSelect") {
             // check if the customId is in the this.commands map
             // if it is, execute the command
             this.commands.forEach((command, string) => {
-                const customId = args[0].customId.split(";")[1];
-                if (command.id === customId)
-                    if (command.module.interaction) command.module.interaction(args[0], this.database, this.client, this.config);
+                // some interactions might not follow the expected customId pattern; guard parsing
+                try {
+                    const customId = args[0].customId.split(";")[1];
+                    if (command.id === customId)
+                        if (command.module.interaction) command.module.interaction(args[0], this.database, this.client, this.config);
+                } catch (e) {
+                    // ignore interactions without customId or unexpected format
+                }
             });
         } else if (event === "message" || event === "messageUpdate") {
             const message = args[0];

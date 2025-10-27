@@ -1,14 +1,17 @@
 const { SlashCommandBuilder, PermissionsBitField, ActionRowBuilder, ChannelType, EmbedBuilder, MessageFlags } = require("discord.js");
 const { Modal } = require("./elements/modal.js");
 const { Button } = require("./elements/button.js");
+const { RoleSelect } = require("./elements/roleSelect.js");
+const { ChannelSelect } = require("./elements/channelSelect.js");
 const { MakeHTML } = require("../modules/makehtml.js");
 const { Timeout } = require("../modules/timeout.js");
 const timeout = new Timeout();
+const setupCache = new Map();
 
 // create a random numberic id
 const internalId = "2210adf889449ecdfd9c";
 
-Number.prototype.pad = function(n) {
+Number.prototype.pad = function (n) {
     return new Array(n).join('0').slice((n || 2) * -1) + this;
 }
 
@@ -50,14 +53,14 @@ function execute(interaction, database) {
                                 text: "Made with ❤️ by zThundy__"
                             }
                         };
-            
+
                         const button = new Button()
                             .setCustomId("ticketcreate;" + internalId)
                             .setLabel("Open ticket")
                             .setEmoji("📨")
                             .setStyle("secondary")
                             .build();
-            
+
                         interaction.reply({
                             content: "",
                             components: [button],
@@ -71,85 +74,41 @@ function execute(interaction, database) {
                 }).catch(console.error);
             break;
         case "setuptagrole":
-            var data = {};
-            
+            // start a modal to ask for title and description, then proceed with select menus for roles/channel
             database.deleteTicketConfig(guild.id);
 
-            // ask the user to type the title and the description of the selector
-            interaction.reply("Please type the title of the ticket message\n\nIf you want to cancel the operation, send **cancel**");
-            const filter = (m) => m.author.id === interaction.user.id;
-            const collector = channel.createMessageCollector(filter, { time: 60000 });
-            // generate and id for the selector with length 50
-            collector.on('collect', (m) => {
-                if (m.author.id !== interaction.user.id) return;
-                if (m.author.bot) return;
-                if (m.content.toLowerCase() === "cancel") {
-                    m.reply("Operation canceled");
-                    return collector.stop();
-                }
-        
-                // collect the title of the selector
-                if (!data.title && !data.description) {
-                    data.title = m.content;
-                    channel.send("Please type the description of the ticket message\n\nIf you want to cancel the operation, send **cancel**");
-                    return;
-                }
-        
-                // collect the description of the selector
-                if (data.title && !data.description) {
-                    data.description = m.content;
-                    channel.send("Please tag the channel where the trascript will be sent to.\n\nIf you want to cancel the operation, send **cancel**\nIf you don't want one, type **done**");
-                    return;
-                }
+            const setupModal = new Modal()
+                .addTextComponent({
+                    type: "short",
+                    label: "Insert the ticket message title",
+                    max: 250,
+                    min: 5,
+                    placeholder: "Ticket title...",
+                    required: true,
+                    id: "setup_title"
+                })
+                .addTextComponent({
+                    type: "paragraph",
+                    label: "Insert the ticket message description",
+                    max: 4000,
+                    min: 10,
+                    placeholder: "Ticket description...",
+                    required: true,
+                    id: "setup_description"
+                })
+                .setTitle("Ticket setup - title & description")
+                .setCustomId("ticketsetup_modal;" + internalId)
+                .build();
 
-                if (data.title && data.description && !data.transcriptChannel) {
-                    if (m.content.toLowerCase() === "done") {
-                        data.transcriptChannel = "0";
-                    } else {
-                        const channel = m.mentions.channels.first();
-                        data.transcriptChannel = channel.id;
-                    }
-
-                    channel.send("Please send the tag to the role of your staff members.\n\nIf you want to cancel the operation, send **cancel**\nIf you are done adding roles, send **done**");
-                    return;
-                }
-                
-                // collect all the roles
-                if (data.title && data.description && data.transcriptChannel) {
-                    if (!data.collected) data.collected = [];
-                    if (m.content.toLowerCase() === "done") {
-                        // send the selector
-                        m.reply("Ticketing system configuration completed!");
-                        database.createTicketConfig(guild.id, JSON.stringify(data.collected), data.title, data.description, data.transcriptChannel);
-                        // check if category "tickets" exists
-                        if (!guild.channels.cache.find(c => c.name.toLowerCase().trim() === "tickets")) {
-                            guild.channels.create({
-                                name: 'tickets',
-                                type: ChannelType.GuildCategory
-                            }).catch(console.error);
-                        }
-                        return collector.stop();
-                    }
-                    const role = m.mentions.roles.first();
-                    // check if the role in "collected" is already in the selector
-                    if (data.collected.find((id) => id === role.id)) {
-                        m.reply("This role is already part of the staff for the tickets");
-                        return;
-                    }
-                    if (role) {
-                        m.reply("Role added to staff list for the tickets");
-                        data.collected.push(role.id);
-                    } else {
-                        m.reply("Please tag a valid role\n\nIf you want to cancel the operation, send **cancel**\nIf you are done adding roles, send **done**");
-                    }
-                }
-            });
+            // directly show the modal (do NOT reply before showModal or Discord will throw InteractionAlreadyReplied)
+            interaction.showModal(setupModal).catch(console.error);
             break;
     }
 }
 
 // interaction command
 async function interaction(interaction, database, _, config) {
+    console.log("<TICKET> Interaction received:", interaction.customId);
     const userId = interaction.user.id;
     if (timeout.checkTimeout(userId)) return interaction.reply({ content: "You're doing that too fast", flags: MessageFlags.Ephemeral });
     // add timeout to the user
@@ -161,36 +120,116 @@ async function interaction(interaction, database, _, config) {
     // get the action to perform
     const action = interaction.customId.split(";")[0];
     switch (action) {
-        case "ticketcreate":
-            const modal = new Modal()
-                .addTextComponent({
-                    type: "short",
-                    label: "Insert a title",
-                    max: 250,
-                    min: 10,
-                    placeholder: "Title of the question... (max 250)",
-                    required: true,
-                    id: "titleofquestion"
-                })
-                .addTextComponent({
-                    type: "paragraph",
-                    label: "Type a description of the issue",
-                    max: 4000,
-                    min: 20,
-                    placeholder: "Description of the issue... (max 4000)",
-                    required: true,
-                    id: "descriptionofquestion"
-                })
-                .setTitle("Explain the issue...")
-                .setCustomId("openticketdata;" + internalId)
-                .build();
-        
-            interaction.showModal(modal).catch(console.error);
+        case "ticketsetup_modal":
+            // modal submitted for setup title/description
+            try {
+                const title = interaction.fields.getTextInputValue('setup_title');
+                const description = interaction.fields.getTextInputValue('setup_description');
+                // save in cache keyed by guild id
+                setupCache.set(guild.id, {
+                    title,
+                    description,
+                    collected: [],
+                    transcriptChannel: "0",
+                    author: user.id
+                });
+
+                // build role select, channel select and finish button
+                const roleSelect = new RoleSelect()
+                    .setCustomId("ticket_setup_roles;" + internalId + ";" + guild.id)
+                    .setPlaceholder("Select staff roles (you can choose multiple)")
+                    .setMinValues(0)
+                    .setMaxValues(10)
+                    .build();
+
+                const channelSelect = new ChannelSelect()
+                    .setCustomId("ticket_setup_channel;" + internalId + ";" + guild.id)
+                    .setPlaceholder("Select transcript channel (optional)")
+                    .setChannelTypes([ChannelType.GuildText])
+                    .setMinValues(0)
+                    .setMaxValues(1)
+                    .build();
+
+                const finishButton = new Button()
+                    .setCustomId("ticket_setup_finish;" + internalId + ";" + guild.id)
+                    .setLabel("Finish setup")
+                    .setStyle("primary")
+                    .build();
+
+                const embed = {
+                    title: "Ticket setup — review",
+                    description: "Review the title and description below, then select staff roles and an optional transcript channel.",
+                    color: 0x00FF00,
+                    timestamp: new Date().toISOString(),
+                    footer: { text: "Finish to save the configuration" },
+                    fields: [
+                        { name: "Title", value: title || "(no title)" },
+                        { name: "Description", value: description || "(no description)" }
+                    ]
+                };
+
+                await interaction.reply({ embeds: [embed], components: [roleSelect, channelSelect, finishButton], flags: MessageFlags.Ephemeral });
+            } catch (e) {
+                console.error(e);
+                interaction.reply({ content: "There was an error processing the setup modal.", flags: MessageFlags.Ephemeral }).catch(console.error);
+            }
+            break;
+        case "ticket_setup_roles":
+            // interaction.values contains role ids
+            try {
+                const selected = interaction.values || [];
+                const cache = setupCache.get(guild.id) || {};
+                cache.collected = selected;
+                setupCache.set(guild.id, cache);
+                await interaction.reply({ content: `Selected ${selected.length} role(s) for staff.`, flags: MessageFlags.Ephemeral });
+            } catch (e) {
+                console.error(e);
+                interaction.reply({ content: "Could not save selected roles.", flags: MessageFlags.Ephemeral }).catch(console.error);
+            }
+            break;
+        case "ticket_setup_channel":
+            try {
+                const selected = interaction.values || [];
+                const cache = setupCache.get(guild.id) || {};
+                cache.transcriptChannel = (selected.length > 0) ? selected[0] : "0";
+                setupCache.set(guild.id, cache);
+                const msg = cache.transcriptChannel === "0" ? "No transcript channel selected." : `Transcript channel set to <#${cache.transcriptChannel}>`;
+                await interaction.reply({ content: msg, flags: MessageFlags.Ephemeral });
+            } catch (e) {
+                console.error(e);
+                interaction.reply({ content: "Could not save selected channel.", flags: MessageFlags.Ephemeral }).catch(console.error);
+            }
+            break;
+        case "ticket_setup_finish":
+            try {
+                const cache = setupCache.get(guild.id);
+                if (!cache) return interaction.reply({ content: "No setup in progress.", flags: MessageFlags.Ephemeral });
+                // persist to database
+                const roles = cache.collected || [];
+                const transcript = cache.transcriptChannel || "0";
+                database.createTicketConfig(guild.id, JSON.stringify(roles), cache.title, cache.description, transcript).then(() => {
+                    // ensure tickets category
+                    if (!guild.channels.cache.find(c => c.name.toLowerCase().trim() === "tickets")) {
+                        guild.channels.create({
+                            name: 'tickets',
+                            type: ChannelType.GuildCategory
+                        }).catch(console.error);
+                    }
+                    setupCache.delete(guild.id);
+                    interaction.reply({ content: "Ticketing system configuration completed!", flags: MessageFlags.Ephemeral }).catch(console.error);
+                }).catch(e => {
+                    console.error(e);
+                    interaction.reply({ content: "Error saving configuration to database.", flags: MessageFlags.Ephemeral }).catch(console.error);
+                });
+            } catch (e) {
+                console.error(e);
+                interaction.reply({ content: "Could not finish setup.", flags: MessageFlags.Ephemeral }).catch(console.error);
+            }
             break;
         case "openticketdata":
             const title = interaction.fields.getTextInputValue('titleofquestion');
             const description = interaction.fields.getTextInputValue('descriptionofquestion');
-            
+
             interaction.reply({ content: "Opening ticket...", flags: MessageFlags.Ephemeral }).then(() => {
                 database.getTicketConfig(guild.id).then((res) => {
                     if (res) {
@@ -209,7 +248,7 @@ async function interaction(interaction, database, _, config) {
                                         name: "Internal ID",
                                         value: "*" + ticketId + "*"
                                     },
-                                    { 
+                                    {
                                         name: "Title",
                                         value: title,
                                     },
@@ -333,15 +372,41 @@ async function interaction(interaction, database, _, config) {
                 }).catch(e => console.error(e));
             }).catch(e => console.error(e));
             break;
+        case "ticketcreate":
+            const modal = new Modal()
+                .addTextComponent({
+                    type: "short",
+                    label: "Insert a title",
+                    max: 250,
+                    min: 10,
+                    placeholder: "Title of the question... (max 250)",
+                    required: true,
+                    id: "titleofquestion"
+                })
+                .addTextComponent({
+                    type: "paragraph",
+                    label: "Type a description of the issue",
+                    max: 4000,
+                    min: 20,
+                    placeholder: "Description of the issue... (max 4000)",
+                    required: true,
+                    id: "descriptionofquestion"
+                })
+                .setTitle("Explain the issue...")
+                .setCustomId("openticketdata;" + internalId)
+                .build();
+
+            interaction.showModal(modal).catch(console.error);
+            break;
     }
 }
 
 function uuid() {
     var dt = new Date().getTime();
-    var uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        var r = (dt + Math.random()*16)%16 | 0;
-        dt = Math.floor(dt/16);
-        return (c=='x' ? r :(r&0x3|0x8)).toString(16);
+    var uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        var r = (dt + Math.random() * 16) % 16 | 0;
+        dt = Math.floor(dt / 16);
+        return (c == 'x' ? r : (r & 0x3 | 0x8)).toString(16);
     });
     return uuid;
 }
@@ -359,7 +424,7 @@ function message(event, message, newMessage, { database, uploader, config }) {
                     ":" + ('0' + dateFormat.getMinutes()).slice(-2) +
                     ":" + ('0' + dateFormat.getSeconds()).slice(-2)
 
-                
+
                 var type = "text";
                 const attachments = [];
 
@@ -367,7 +432,7 @@ function message(event, message, newMessage, { database, uploader, config }) {
                     console.log("<TICKET> Found attachments in message");
                     message.attachments.forEach((attachment) => {
                         console.log("<TICKET> Found attachment:", attachment.url, attachment.name, attachment.contentType);
-                        
+
                         // images
                         // test for urls ending with .jpg, .jpeg, .png, .webp, .avif, .gif, .svg or names with image content type
                         if ((/^https?:\/\/.+\jpg|jpeg|png|webp|avif|gif|svg$/i).test(attachment.url) || (attachment.contentType && attachment.contentType.startsWith("image/"))) {
