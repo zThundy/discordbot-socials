@@ -6,7 +6,9 @@ class Logger {
     constructor() {
         this.fileStream = null;
         this.logStream = null;
+        this.errLogStream = null;
         this.logFile = path.join("./", "bot", "data", "logs", "stream.log");
+        this.errLogFile = path.join("./", "bot", "data", "logs", "error.log");
         this.logFolder = path.join("./", "bot", "data", "logs");
 
         // keep original console methods if needed
@@ -19,8 +21,9 @@ class Logger {
         };
 
         this.checkFolder();
-        this.checkFile();
-        this.createStream();
+    this.checkFile(this.logFile);
+    this.checkFile(this.errLogFile);
+    this.createStream();
 
         this.internalId = this.id();
 
@@ -56,6 +59,7 @@ class Logger {
 
     createStream() {
         this.logStream = fs.createWriteStream(this.logFile, { flags: "a" });
+        this.errLogStream = fs.createWriteStream(this.errLogFile, { flags: "a" });
     }
 
     checkFolder() {
@@ -66,25 +70,41 @@ class Logger {
     }
 
     checkFile() {
-        // check if file exists
-        if (!fs.existsSync(this.logFile)) {
-            // create file
-            fs.writeFileSync(this.logFile, "");
+        // deprecated
+        return;
+    }
+
+    checkFile(filePath) {
+        // check if file exists, create if not
+        if (!fs.existsSync(filePath)) {
+            fs.writeFileSync(filePath, "");
         }
     }
 
     rotate() {
-        this.checkFile();
-        // rename file
+        // generic rotate for both streams
         const date = new Date();
-        // create new log file and rename adding date as DD/MM/YYYY HH:MM:SS
-        const newFile = path.join(this.logFolder, `log_${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()} ${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}.txt`);
-        // print file rotation
-        console.log(`Renaming log file to ${newFile}`);
-        // end the stream of the current log file
-        this.logStream.end();
-        // rename the current log file to the new path
-        fs.renameSync(this.logFile, newFile);
+        const stamp = `${date.getFullYear()}-${(date.getMonth()+1).toString().padStart(2,'0')}-${date.getDate().toString().padStart(2,'0')}_${date.getHours().toString().padStart(2,'0')}-${date.getMinutes().toString().padStart(2,'0')}-${date.getSeconds().toString().padStart(2,'0')}`;
+        try {
+            // rotate stream.log
+            if (this.logStream) {
+                const newFile = path.join(this.logFolder, `stream_${stamp}.log`);
+                this._origConsole.log(`Renaming log file to ${newFile}`);
+                this.logStream.end();
+                try { fs.renameSync(this.logFile, newFile); } catch (e) { /* ignore */ }
+                this.logStream = fs.createWriteStream(this.logFile, { flags: 'a' });
+            }
+            // rotate error.log
+            if (this.errLogStream) {
+                const newErrFile = path.join(this.logFolder, `error_${stamp}.log`);
+                this._origConsole.log(`Renaming error log file to ${newErrFile}`);
+                this.errLogStream.end();
+                try { fs.renameSync(this.errLogFile, newErrFile); } catch (e) { /* ignore */ }
+                this.errLogStream = fs.createWriteStream(this.errLogFile, { flags: 'a' });
+            }
+        } catch (e) {
+            this._origConsole.error('Rotate failed', e);
+        }
     }
 
     async _write(type, ...args) {
@@ -120,20 +140,20 @@ class Logger {
 
             const message = Array.from(args).join(' ') + '\r\n';
 
-            // write to appropriate stream
+            // write to appropriate std stream
             if (type === 'ERROR') {
                 try { process.stderr.write(message); } catch (e) { process.stdout.write(message); }
             } else {
                 process.stdout.write(message);
             }
 
-            // write to log file
-            if (this.logStream && this.logStream.writable) this.logStream.write(message);
-
-            // check if file size is bigger than 50MB
-            if (this.logStream && this.logStream.bytesWritten > 50000000) {
-                // rotate log file
-                this.rotate();
+            // write to appropriate log file
+            if (type === 'ERROR') {
+                if (this.errLogStream && this.errLogStream.writable) this.errLogStream.write(message);
+                if (this.errLogStream && this.errLogStream.bytesWritten > 50000000) this.rotate();
+            } else {
+                if (this.logStream && this.logStream.writable) this.logStream.write(message);
+                if (this.logStream && this.logStream.bytesWritten > 50000000) this.rotate();
             }
         } catch (e) {
             // fallback to original console.error if something goes wrong
