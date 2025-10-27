@@ -301,21 +301,22 @@ function _addAccount(account) {
                             const alreadySent = await _extra.database.isTweetAlreadySend(_account.guildId, _account.channelId, _account.accountName, tweetId);
                             console.log(`> Checking tweet ID ${tweetId}, alreadySent=${alreadySent}`);
                             if (!alreadySent) {
-                                const embeds = _extra.twitter.getEmbed(t);
-                                if (_account.roleId) {
-                                    channel.send({
-                                        content: `<@&${_account.roleId}> **${_account.accountName}** posted a new tweet!\n\n<${embeds[0].url}>`,
-                                        embeds
-                                    }).catch(console.error);
-                                } else {
-                                    channel.send({
-                                        content: `@everyone **${_account.accountName}** posted a new tweet!\n\n<${embeds[0].url}>`,
-                                        embeds
-                                    }).catch(console.error);
-                                }
-                                // mark as sent so we don't resend
-                                _extra.database.insertNewTweet(_account.guildId, _account.channelId, _account.accountName, tweetId);
-
+                                _extra.twitter.getEmbed(t)
+                                    .then(embeds => {
+                                    if (_account.roleId) {
+                                        channel.send({
+                                            content: `<@&${_account.roleId}> **${_account.accountName}** posted a new tweet!\n\n<${embeds[0].url}>`,
+                                            embeds
+                                        }).catch(console.error);
+                                    } else {
+                                        channel.send({
+                                            content: `@everyone **${_account.accountName}** posted a new tweet!\n\n<${embeds[0].url}>`,
+                                            embeds
+                                        }).catch(console.error);
+                                    }
+                                    // mark as sent so we don't resend
+                                    _extra.database.insertNewTweet(_account.guildId, _account.channelId, _account.accountName, tweetId);
+                                }).catch(console.error);
                                 // removed break so that we sent all the last tweets
                                 // break; // only send the newest unsent tweet
                             }

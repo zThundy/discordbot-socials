@@ -1,5 +1,7 @@
 const https = require("https");
 const { URL } = require("url");
+const { AttachmentBuilder } = require('discord.js');
+const path = require('path');
 
 class TwitterAPI {
     constructor(config, database) {
@@ -164,52 +166,65 @@ class TwitterAPI {
 
     // Build embed(s) from a normalized tweet object (compatible with previous format)
     getEmbed(tweet) {
-        // parse it if is a string
-        if (typeof tweet === 'string') tweet = JSON.parse(tweet);
-        // convert unicode escapes if any
-        if (tweet.full_text) tweet.full_text = tweet.full_text.replace(/\\u[\dA-F]{4}/gi, (match) => {
-            return String.fromCharCode(parseInt(match.replace(/\\u/g, ''), 16));
-        });
+        return new Promise((resolve, reject) => {
+            // parse it if is a string
+            if (typeof tweet === 'string') tweet = JSON.parse(tweet);
+            // convert unicode escapes if any
+            if (tweet.full_text) tweet.full_text = tweet.full_text.replace(/\\u[\dA-F]{4}/gi, (match) => {
+                return resolve(String.fromCharCode(parseInt(match.replace(/\\u/g, ''), 16)));
+                // return String.fromCharCode(parseInt(match.replace(/\\u/g, ''), 16));
+            });
 
-        // simple HTML entities unescape
-        tweet.full_text = (tweet.full_text || '').replace(/&gt;/g, ">")
-            .replace(/&lt;/g, "<")
-            .replace(/&amp;/g, "&")
-            .replace(/&quot;/g, '"')
-            .replace(/&#39;/g, "'")
-            .replace(/&amp;#39;/g, "'")
-            .replace(/&amp;quot;/g, '"');
+            // simple HTML entities unescape
+            tweet.full_text = (tweet.full_text || '').replace(/&gt;/g, ">")
+                .replace(/&lt;/g, "<")
+                .replace(/&amp;/g, "&")
+                .replace(/&quot;/g, '"')
+                .replace(/&#39;/g, "'")
+                .replace(/&amp;#39;/g, "'")
+                .replace(/&amp;quot;/g, '"');
 
-        const url = `https://twitter.com/${tweet.user.screen_name}/status/${tweet.id_str || tweet.id}`;
-        const embed = {
-            title: `${tweet.user.name} posted a tweet!`,
-            url,
-            color: 0x00acee,
-            author: {
-                name: tweet.user.name,
-                url: `https://twitter.com/${tweet.user.screen_name}`,
-                icon_url: (tweet.user.profile_image_url_https || '').replace('_normal', '_bigger')
-            },
-            image: {
-                url: tweet.entities && tweet.entities.media ? tweet.entities.media[0].media_url_https : null
-            },
-            timestamp: new Date().toISOString(),
-            description: tweet.full_text ? `**${(tweet.full_text.split(/https:\/\/t.co\//)[0] || tweet.full_text).trim()}**` : null,
-            footer: { text: 'Made with ❤️ by zThundy__' },
-            thumbnail: { url: 'https://upload.wikimedia.org/wikipedia/it/archive/0/09/20160903181541%21Twitter_bird_logo.png' }
-        };
+            const twitterLogoPath = path.resolve("./", "bot", "images", "twitter.png");
+            const logo = new AttachmentBuilder(twitterLogoPath)
+                .setName("twitter.png")
 
-        const embeds = [];
-        if (tweet.extended_entities && tweet.extended_entities.media && tweet.extended_entities.media.length > 1) {
-            // first put main embed
-            embeds.push(embed);
-            for (let i = 1; i < tweet.extended_entities.media.length && i < 10; i++) {
-                embeds.push({ url, image: { url: tweet.extended_entities.media[i].media_url_https } });
+            const url = `https://twitter.com/${tweet.user.screen_name}/status/${tweet.id_str || tweet.id}`;
+            const embed = {
+                title: `${tweet.user.name} posted a tweet!`,
+                url,
+                color: 0x00acee,
+                thumbnail: {
+                    url: `attachment://twitter.png`
+                },
+                author: {
+                    name: tweet.user.name,
+                    url: `https://twitter.com/${tweet.user.screen_name}`,
+                    icon_url: (tweet.user.profile_image_url_https || '').replace('_normal', '_bigger')
+                },
+                image: {
+                    url: tweet.entities && tweet.entities.media ? tweet.entities.media[0].media_url_https : null
+                },
+                timestamp: new Date().toISOString(),
+                description: tweet.full_text ? `**${(tweet.full_text.split(/https:\/\/t.co\//)[0] || tweet.full_text).trim()}**` : null,
+                footer: { text: 'Made with ❤️ by zThundy__' },
+                files: [logo]
+            };
+
+            const embeds = [];
+            if (tweet.extended_entities && tweet.extended_entities.media && tweet.extended_entities.media.length > 1) {
+                // first put main embed
+                embeds.push(embed);
+                for (let i = 1; i < tweet.extended_entities.media.length && i < 10; i++) {
+                    embeds.push({
+                        url,
+                        image: { url: tweet.extended_entities.media[i].media_url_https }
+                    });
+                }
+                return resolve(embeds);
             }
-            return embeds;
-        }
 
-        return [embed];
+            return resolve([embed]);
+        });
     }
 }
 
