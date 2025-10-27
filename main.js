@@ -76,7 +76,7 @@ client.on(Events.MessageUpdate, (oldM, newM) => {
 
 client.on(Events.InteractionCreate, (interaction) => {
     try {
-        console.log(">>> Interaction received:", interaction);
+        console.log(">>> Interaction received:", interaction.type, interaction.customId);
         const guild = interaction.guild;
         const bot = bots[guild.id];
         if (!bot) return;

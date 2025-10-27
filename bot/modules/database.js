@@ -506,6 +506,46 @@ class SQL {
         });
     }
 
+    updateMultiSelector(guildId, selectorId, embed, maxChoices) {
+        console.log("<DATABASE> updateMultiSelector call");
+        return new Promise((resolve, reject) => {
+            this.db.run("UPDATE multiRolesSelector SET embed = ?, maxChoices = ? WHERE guildId = ? AND selectorId = ?", [embed, maxChoices, guildId, selectorId], (err) => {
+                if (err) reject(err);
+                resolve();
+            });
+        });
+    }
+
+    deleteMultiRolesForSelector(guildId, selectorId) {
+        console.log("<DATABASE> deleteMultiRolesForSelector call");
+        return new Promise((resolve, reject) => {
+            this.db.run("DELETE FROM multiRoles WHERE guildId = ? AND selectorId = ?", [guildId, selectorId], (err) => {
+                if (err) reject(err);
+                resolve();
+            });
+        });
+    }
+
+    updateSelector(guildId, selectorId, embed) {
+        console.log("<DATABASE> updateSelector call");
+        return new Promise((resolve, reject) => {
+            this.db.run("UPDATE rolesSelector SET embed = ? WHERE guildId = ? AND selectorId = ?", [embed, guildId, selectorId], (err) => {
+                if (err) reject(err);
+                resolve();
+            });
+        });
+    }
+
+    deleteRolesForSelector(guildId, selectorId) {
+        console.log("<DATABASE> deleteRolesForSelector call");
+        return new Promise((resolve, reject) => {
+            this.db.run("DELETE FROM roles WHERE guildId = ? AND selectorId = ?", [guildId, selectorId], (err) => {
+                if (err) reject(err);
+                resolve();
+            });
+        });
+    }
+
     /**
      * twitter section
      */

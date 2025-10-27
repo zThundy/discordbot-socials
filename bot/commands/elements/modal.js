@@ -53,6 +53,15 @@ class Modal {
         field.setPlaceholder(String(options.placeholder) || "Type something here...");
         field.setRequired(Boolean(options.required) || false);
 
+        // allow prefilled value in modal
+        if (options.value) {
+            try {
+                field.setValue(String(options.value));
+            } catch (e) {
+                // older discord.js versions may not support setValue; ignore if unavailable
+            }
+        }
+
         if (!options.id) field.setCustomId((Math.random() + 1).toString(36).substring(7))
         field.setCustomId(String(options.id))
 

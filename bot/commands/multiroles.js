@@ -1,6 +1,8 @@
 const { SlashCommandBuilder, PermissionsBitField, MessageFlags } = require("discord.js");
 const { SelectMenu } = require("./elements/dropdown.js");
 const { Button } = require("./elements/button.js");
+const { Modal } = require("./elements/modal.js");
+const { RoleSelect } = require("./elements/roleSelect.js");
 const { Timeout } = require("../modules/timeout.js");
 const timeout = new Timeout();
 
@@ -18,6 +20,7 @@ function build(guild) {
             .setRequired(true)
             .addChoices({ name: '⏺ Send', value: 'create' })
             .addChoices({ name: '✅ Create selector', value: 'add' })
+            .addChoices({ name: '✏️ Edit selector', value: 'edit' })
             .addChoices({ name: '❌ Delete selector', value: 'cancel' });
         return option;
     });
@@ -36,10 +39,46 @@ function execute(interaction, database) {
         case 'add':
             add(interaction, database);
             break;
+        case 'edit':
+            edit(interaction, database);
+            break;
         case "cancel":
             cancel(interaction, database);
             break;
     }
+}
+
+async function edit(interaction, database) {
+    const guild = interaction.guild;
+    // get all selectors
+    database.getAllMultiRolesAndSelectors(guild.id).then((rows) => {
+        const options = [];
+        for (var i in rows) {
+            var description = rows[i].embed.description;
+            if (description.length >= 95) description = description.substring(0, 95) + "...";
+            options.push({
+                label: rows[i].embed.title,
+                value: rows[i].selectorId,
+                description,
+                emoji: "✏️"
+            });
+        }
+
+        if (options.length == 0) {
+            interaction.reply({ content: "There are no selectors in this server", flags: MessageFlags.Ephemeral });
+            return;
+        }
+
+        const selectMenu = new SelectMenu()
+            .setCustomId("editmultiroleselector;" + internalId)
+            .setPlaceholder("Pick a multi-role selector to edit")
+            .setMinValues(1)
+            .setMaxValues(1)
+            .addOptions(options)
+            .build();
+
+        interaction.reply({ content: "Select a selector to edit", components: [selectMenu], flags: MessageFlags.Ephemeral });
+    }).catch(console.error);
 }
 
 async function cancel(interaction, database) {
@@ -89,86 +128,41 @@ async function cancel(interaction, database) {
 
 async function add(interaction, database) {
     const guild = interaction.guild;
-    const channel = interaction.channel;
 
-    interaction.reply({
-        content: "Please wait...",
-        flags: MessageFlags.Ephemeral
-    });
+    // open a modal to collect title, description and maxChoices
+    const setupModal = new Modal()
+        .addTextComponent({
+            type: 'short',
+            label: 'Selector title',
+            max: 250,
+            min: 1,
+            placeholder: 'Enter the selector title',
+            required: true,
+            id: 'multiroles_setup_title'
+        })
+        .addTextComponent({
+            type: 'paragraph',
+            label: 'Selector description',
+            max: 1000,
+            min: 1,
+            placeholder: 'Enter the selector description',
+            required: true,
+            id: 'multiroles_setup_description'
+        })
+        .addTextComponent({
+            type: 'short',
+            label: 'Max choices per user',
+            max: 3,
+            min: 1,
+            placeholder: 'Enter a number (e.g. 2)',
+            required: true,
+            id: 'multiroles_setup_max'
+        })
+        .setTitle('Create multi-role selector')
+        .setCustomId('multiroles_setup_modal;' + internalId)
+        .build();
 
-    // ask the user to type the title and the description of the selector
-    channel.send("Please type the title of the selector\n\nIf you want to cancel the operation, send **cancel**");
-    const filter = (m) => m.author.id === interaction.user.id;
-    const collector = channel.createMessageCollector(filter, { time: 60000 });
-    // generate and id for the selector with length 50
-    const selectorId = Math.random().toString(36).substring(2, 52);
-    var data = {};
-    collector.on('collect', (m) => {
-        if (m.author.id !== interaction.user.id) return;
-        if (m.author.bot) return;
-        if (m.content.toLowerCase() === "cancel") {
-            m.reply("Operation canceled");
-            return collector.stop();
-        }
-
-        // collect the title of the selector
-        if (!data.title && !data.description && !data.maxChoices) {
-            data.title = m.content;
-            channel.send("Please type the description of the selector\n\nIf you want to cancel the operation, send **cancel**");
-            return;
-        }
-
-        // collect the description of the selector
-        if (data.title && !data.description && !data.maxChoices) {
-            data.description = m.content;
-            channel.send("Please type the maximum number of roles that a user can select\n\nIf you want to cancel the operation, send **cancel**");
-            return;
-        }
-
-        // collect the max number of roles that a user can select
-        if (data.title && data.description && !data.maxChoices) {
-            if (isNaN(m.content)) {
-                m.reply("Please type a valid number");
-                return;
-            }
-            data.maxChoices = parseInt(m.content);
-            // create the selector
-            database.createMultiSelecor(guild.id, selectorId, JSON.stringify({
-                title: data.title,
-                description: data.description,
-                color: 0x00FF00,
-                footer: {
-                    text: "Made with ❤️ by zThundy__"
-                }
-            }), data.maxChoices);
-            channel.send("Please send the tag to the role you want to add to the selector.\n\nIf you want to cancel the operation, send **cancel**\nIf you are done adding roles, send **done**");
-            return;
-        }
-
-        // collect all the roles
-        if (data.title && data.description && data.maxChoices) {
-            if (!data.collected) data.collected = [];
-            if (m.content.toLowerCase() === "done") {
-                // send the selector
-                m.reply("Creation of the selector completed");
-                return collector.stop();
-            }
-            const role = m.mentions.roles.first();
-            // check if the role in "collected" is already in the selector
-            if (data.collected.find((r) => r.id === role.id)) {
-                m.reply("You have already added this role to this selector");
-                return;
-            }
-            if (role) {
-                // add the role to the selector
-                database.addMultiRoleToSelector(guild.id, selectorId, role.id, role.name)
-                m.reply("Role added to the selector");
-                data.collected.push(role);
-            } else {
-                m.reply("Please tag a valid role\n\nIf you want to cancel the operation, send **cancel**\nIf you are done adding roles, send **done**");
-            }
-        }
-    });
+    interaction.showModal(setupModal).catch(console.error);
 }
 
 async function create(interaction, database) {
@@ -237,6 +231,145 @@ async function interaction(interaction, database) {
             break;
         case "multirolesbutton":
             multirolesbutton(interaction, database);
+            break;
+        case "editmultiroleselector":
+            // user selected which selector to edit -> open prefilled modal
+            try {
+                const selectorId = interaction.values[0];
+                const guild = interaction.guild;
+                const embed = await database.getEmbedFromMultiSelectorId(guild.id, selectorId);
+                // fetch current maxChoices as well
+                const multi = await database.getMultiRolesFromSelectorId(guild.id, selectorId);
+
+                const editModal = new Modal()
+                    .addTextComponent({ type: 'short', label: 'Selector title', max: 250, min: 1, placeholder: 'Enter the selector title', required: true, id: 'multiroles_edit_title', value: embed.title })
+                    .addTextComponent({ type: 'paragraph', label: 'Selector description', max: 1000, min: 1, placeholder: 'Enter the selector description', required: true, id: 'multiroles_edit_description', value: embed.description })
+                    .addTextComponent({ type: 'short', label: 'Max choices per user', max: 3, min: 1, placeholder: 'Enter a number (e.g. 2)', required: true, id: 'multiroles_edit_max', value: multi.maxChoices })
+                    .setTitle('Edit multi-role selector')
+                    .setCustomId('multiroles_edit_modal;' + internalId + ';' + selectorId)
+                    .build();
+
+                await interaction.showModal(editModal);
+            } catch (e) {
+                console.error(e);
+                interaction.reply({ content: 'Could not open edit modal', flags: MessageFlags.Ephemeral }).catch(console.error);
+            }
+            break;
+        case 'multiroles_edit_modal':
+            // handled by modal submit handler below
+            try {
+                const parts = interaction.customId.split(';');
+                const selectorId = parts[2];
+                const guild = interaction.guild;
+                const title = interaction.fields.getTextInputValue('multiroles_edit_title');
+                const description = interaction.fields.getTextInputValue('multiroles_edit_description');
+                const maxRaw = interaction.fields.getTextInputValue('multiroles_edit_max');
+                let maxChoices = parseInt(maxRaw);
+                if (isNaN(maxChoices) || maxChoices < 1) maxChoices = 1;
+                maxChoices = Math.min(maxChoices, 25);
+
+                const embedObj = { title, description, color: 0x00FF00, footer: { text: 'Made with ❤️ by zThundy__' } };
+                await database.updateMultiSelector(guild.id, selectorId, JSON.stringify(embedObj), maxChoices);
+
+                // now present role select to edit roles
+                let availableRolesCount = guild.roles.cache.filter(r => r.name !== '@everyone').size;
+                const maxSelectable = Math.min(Math.max(1, availableRolesCount), 25);
+                const roleSelect = new RoleSelect()
+                    .setCustomId('multiroles_edit_roles;' + internalId + ';' + selectorId)
+                    .setPlaceholder('Select role(s) to set for this selector (this will replace existing roles)')
+                    .setMinValues(1)
+                    .setMaxValues(maxSelectable)
+                    .build();
+
+                const embed = await database.getEmbedFromMultiSelectorId(guild.id, selectorId);
+                await interaction.reply({ embeds: [embed], components: [roleSelect], flags: MessageFlags.Ephemeral });
+            } catch (e) {
+                console.error(e);
+                interaction.reply({ content: 'Error processing edit modal', flags: MessageFlags.Ephemeral }).catch(console.error);
+            }
+            break;
+        case 'multiroles_edit_roles':
+            try {
+                const parts = interaction.customId.split(';');
+                const selectorId = parts[2];
+                const guild = interaction.guild;
+                const selected = interaction.values || [];
+                // replace existing roles
+                await database.deleteMultiRolesForSelector(guild.id, selectorId);
+                const added = [];
+                for (const roleId of selected) {
+                    const role = await guild.roles.fetch(roleId);
+                    if (!role) continue;
+                    await database.addMultiRoleToSelector(guild.id, selectorId, role.id, role.name);
+                    added.push(role.name);
+                }
+                await interaction.reply({ content: `Updated roles for selector. Added: ${added.join(', ')}`, flags: MessageFlags.Ephemeral });
+            } catch (e) {
+                console.error(e);
+                interaction.reply({ content: 'Could not update roles for selector', flags: MessageFlags.Ephemeral }).catch(console.error);
+            }
+            break;
+        case "multiroles_setup_modal":
+            try {
+                const guild = interaction.guild;
+                const title = interaction.fields.getTextInputValue('multiroles_setup_title');
+                const description = interaction.fields.getTextInputValue('multiroles_setup_description');
+                const maxRaw = interaction.fields.getTextInputValue('multiroles_setup_max');
+                let maxChoices = parseInt(maxRaw);
+                if (isNaN(maxChoices) || maxChoices < 1) maxChoices = 1;
+                // cap at 25
+                maxChoices = Math.min(maxChoices, 25);
+
+                const selectorId = Math.random().toString(36).substring(2, 52);
+                const embedObj = {
+                    title: title,
+                    description: description,
+                    color: 0x00FF00,
+                    footer: { text: "Made with ❤️ by zThundy__" }
+                };
+
+                // persist selector with maxChoices
+                database.createMultiSelecor(guild.id, selectorId, JSON.stringify(embedObj), maxChoices);
+
+                // build role select allowing multiple selection up to available roles in guild
+                let availableRolesCount = guild.roles.cache.filter(r => r.name !== '@everyone').size;
+                const maxSelectable = Math.min(Math.max(1, availableRolesCount), 25);
+
+                const roleSelect = new RoleSelect()
+                    .setCustomId('multiroles_add_roles;' + internalId + ';' + selectorId)
+                    .setPlaceholder('Select role(s) to add to the selector')
+                    .setMinValues(1)
+                    .setMaxValues(maxSelectable)
+                    .build();
+
+                const embed = await database.getEmbedFromMultiSelectorId(guild.id, selectorId);
+                await interaction.reply({ embeds: [embed], components: [roleSelect], flags: MessageFlags.Ephemeral });
+            } catch (e) {
+                console.error(e);
+                interaction.reply({ content: 'Error while creating multi-role selector', flags: MessageFlags.Ephemeral }).catch(console.error);
+            }
+            break;
+        case 'multiroles_add_roles':
+            try {
+                const guild = interaction.guild;
+                const selectorId = interaction.customId.split(';')[2];
+                const selected = interaction.values || [];
+                const added = [];
+                for (const roleId of selected) {
+                    try {
+                        const role = await guild.roles.fetch(roleId);
+                        if (!role) continue;
+                        await database.addMultiRoleToSelector(guild.id, selectorId, role.id, role.name);
+                        added.push(role.name);
+                    } catch (e) {
+                        console.error('Error adding role', roleId, e);
+                    }
+                }
+                await interaction.reply({ content: `Added ${added.length} role(s): ${added.join(', ')}`, flags: MessageFlags.Ephemeral });
+            } catch (e) {
+                console.error(e);
+                interaction.reply({ content: 'Could not add roles to selector', flags: MessageFlags.Ephemeral }).catch(console.error);
+            }
             break;
     }
 }

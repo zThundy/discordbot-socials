@@ -1,5 +1,7 @@
 const { SlashCommandBuilder, PermissionsBitField, MessageFlags } = require("discord.js");
 const { SelectMenu } = require("./elements/dropdown.js");
+const { Modal } = require("./elements/modal.js");
+const { RoleSelect } = require("./elements/roleSelect.js");
 const { Timeout } = require("../modules/timeout.js");
 const timeout = new Timeout();
 
@@ -17,8 +19,8 @@ function build(guild) {
             .setRequired(true)
             .addChoices({ name: '⏺ Send', value: 'create' })
             .addChoices({ name: '✅ Create selector', value: 'add' })
-            .addChoices({ name: '❌ Delete selector', value: 'cancel' })
-            .addChoices({ name: '📌 Edit role', value: 'edit' });
+            .addChoices({ name: '✏️ Edit selector', value: 'edit' })
+            .addChoices({ name: '❌ Delete selector', value: 'cancel' });
         return option;
     });
     command.setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator);
@@ -92,75 +94,32 @@ async function cancel(interaction, database) {
 
 async function add(interaction, database) {
     const guild = interaction.guild;
-    const channel = interaction.channel;
+    // open a modal to collect title and description
+    const setupModal = new Modal()
+        .addTextComponent({
+            type: 'short',
+            label: 'Selector title',
+            max: 250,
+            min: 1,
+            placeholder: 'Enter the selector title',
+            required: true,
+            id: 'roles_setup_title'
+        })
+        .addTextComponent({
+            type: 'paragraph',
+            label: 'Selector description',
+            max: 1000,
+            min: 1,
+            placeholder: 'Enter the selector description',
+            required: true,
+            id: 'roles_setup_description'
+        })
+        .setTitle('Create role selector')
+        .setCustomId('roles_setup_modal;' + internalId)
+        .build();
 
-    interaction.reply({
-        content: "Please wait...",
-        flags: MessageFlags.Ephemeral
-    });
-
-    // ask the user to type the title and the description of the selector
-    channel.send("Please type the title of the selector\n\nIf you want to cancel the operation, send **cancel**");
-    const filter = (m) => m.author.id === interaction.user.id;
-    const collector = channel.createMessageCollector(filter, { time: 60000 });
-    // generate and id for the selector with length 50
-    const selectorId = Math.random().toString(36).substring(2, 52);
-    var data = {};
-    collector.on('collect', (m) => {
-        if (m.author.id !== interaction.user.id) return;
-        if (m.author.bot) return;
-        if (m.content.toLowerCase() === "cancel") {
-            m.reply("Operation canceled");
-            return collector.stop();
-        }
-
-        // collect the title of the selector
-        if (!data.title && !data.description) {
-            data.title = m.content;
-            channel.send("Please type the description of the selector\n\nIf you want to cancel the operation, send **cancel**");
-            return;
-        }
-
-        // collect the description of the selector
-        if (data.title && !data.description) {
-            data.description = m.content;
-            // create the selector
-            database.createSelecor(guild.id, selectorId, JSON.stringify({
-                title: data.title,
-                description: data.description,
-                color: 0x00FF00,
-                footer: {
-                    text: "Made with ❤️ by zThundy__"
-                }
-            }));
-            channel.send("Please send the tag to the role you want to add to the selector.\n\nIf you want to cancel the operation, send **cancel**\nIf you are done adding roles, send **done**");
-            return;
-        }
-
-        // collect all the roles
-        if (data.title && data.description) {
-            if (!data.collected) data.collected = [];
-            if (m.content.toLowerCase() === "done") {
-                // send the selector
-                m.reply("Creation of the selector completed");
-                return collector.stop();
-            }
-            const role = m.mentions.roles.first();
-            // check if the role in "collected" is already in the selector
-            if (data.collected.find((r) => r.id === role.id)) {
-                m.reply("You have already added this role to this selector");
-                return;
-            }
-            if (role) {
-                // add the role to the selector
-                database.addRoleToSelector(guild.id, selectorId, role.id, role.name)
-                m.reply("Role added to the selector");
-                data.collected.push(role);
-            } else {
-                m.reply("Please tag a valid role\n\nIf you want to cancel the operation, send **cancel**\nIf you are done adding roles, send **done**");
-            }
-        }
-    });
+    // show modal directly
+    interaction.showModal(setupModal).catch(console.error);
 }
 
 async function create(interaction, database) {
@@ -275,6 +234,125 @@ async function interaction(interaction, database) {
         case "editroleselector":
             editroleselector(interaction, database);
             break;
+        case 'editroleselector_submit':
+            // handled in editroleselector function flow; not used
+            break;
+        case "roles_setup_modal":
+            // modal submitted after asking title/description
+            try {
+                const guild = interaction.guild;
+                const title = interaction.fields.getTextInputValue('roles_setup_title');
+                const description = interaction.fields.getTextInputValue('roles_setup_description');
+                // create selector id
+                const selectorId = Math.random().toString(36).substring(2, 52);
+                // build embed object
+                const embedObj = {
+                    title: title,
+                    description: description,
+                    color: 0x00FF00,
+                    footer: { text: "Made with ❤️ by zThundy__" }
+                };
+                // persist selector (same function name used previously)
+                database.createSelecor(guild.id, selectorId, JSON.stringify(embedObj));
+
+                // present a role select to pick one or more roles to add
+                // calculate number of selectable roles in the guild (exclude @everyone)
+                let availableRolesCount = guild.roles.cache.filter(r => r.name !== '@everyone').size;
+                // Discord select menus cap maxValues at 25
+                const maxSelectable = Math.min(Math.max(1, availableRolesCount), 25);
+
+                const roleSelect = new RoleSelect()
+                    .setCustomId('roles_add_role;' + internalId + ';' + selectorId)
+                    .setPlaceholder('Select role(s) to add to the selector')
+                    .setMinValues(1)
+                    .setMaxValues(maxSelectable)
+                    .build();
+
+                const embed = await database.getEmbedFromSelectorId(guild.id, selectorId);
+                await interaction.reply({ embeds: [embed], components: [roleSelect], flags: MessageFlags.Ephemeral });
+            } catch (e) {
+                console.error(e);
+                interaction.reply({ content: 'Error while creating selector', flags: MessageFlags.Ephemeral }).catch(console.error);
+            }
+            break;
+        case 'roles_add_role':
+            try {
+                const guild = interaction.guild;
+                // customId format: roles_add_role;internalId;selectorId
+                const selectorId = interaction.customId.split(';')[2];
+                const roleIds = interaction.values;
+                let interactionMessage = "";
+                for (var r in roleIds) {
+                    const roleId = roleIds[r];
+                    // fetch role to get name
+                    const role = await guild.roles.fetch(roleId);
+                    if (!role) {
+                        interactionMessage += `Role with ID ${roleId} not found in guild.\n`;
+                        continue;
+                    }
+                    // add role to selector in DB
+                    await database.addRoleToSelector(guild.id, selectorId, role.id, role.name);
+                    interactionMessage += `Role **${role.name}** added to selector.\n`;
+                }
+                if (interactionMessage) {
+                    await interaction.reply({ content: interactionMessage, flags: MessageFlags.Ephemeral });
+                }
+            } catch (e) {
+                console.error(e);
+                interaction.reply({ content: 'Could not add role to selector', flags: MessageFlags.Ephemeral }).catch(console.error);
+            }
+            break;
+        case 'roles_edit_modal':
+            try {
+                const parts = interaction.customId.split(';');
+                // customId: roles_edit_modal;internalId;selectorId
+                const selectorId = parts[2];
+                const guild = interaction.guild;
+                const title = interaction.fields.getTextInputValue('roles_edit_title');
+                const description = interaction.fields.getTextInputValue('roles_edit_description');
+
+                const embedObj = { title: title, description: description, color: 0x00FF00, footer: { text: 'Made with ❤️ by zThundy__' } };
+                await database.updateSelector(guild.id, selectorId, JSON.stringify(embedObj));
+
+                // present role select to pick roles (replace existing)
+                let availableRolesCount = guild.roles.cache.filter(r => r.name !== '@everyone').size;
+                const maxSelectable = Math.min(Math.max(1, availableRolesCount), 25);
+
+                const roleSelect = new RoleSelect()
+                    .setCustomId('roles_edit_roles;' + internalId + ';' + selectorId)
+                    .setPlaceholder('Select role(s) to set for this selector (this will replace existing roles)')
+                    .setMinValues(1)
+                    .setMaxValues(maxSelectable)
+                    .build();
+
+                const embed = await database.getEmbedFromSelectorId(guild.id, selectorId);
+                await interaction.reply({ embeds: [embed], components: [roleSelect], flags: MessageFlags.Ephemeral });
+            } catch (e) {
+                console.error(e);
+                interaction.reply({ content: 'Error processing edit modal', flags: MessageFlags.Ephemeral }).catch(console.error);
+            }
+            break;
+        case 'roles_edit_roles':
+            try {
+                const parts = interaction.customId.split(';');
+                const selectorId = parts[2];
+                const guild = interaction.guild;
+                const selected = interaction.values || [];
+                // replace existing roles
+                await database.deleteRolesForSelector(guild.id, selectorId);
+                const added = [];
+                for (const roleId of selected) {
+                    const role = await guild.roles.fetch(roleId);
+                    if (!role) continue;
+                    await database.addRoleToSelector(guild.id, selectorId, role.id, role.name);
+                    added.push(role.name);
+                }
+                await interaction.reply({ content: `Updated roles for selector. Added: ${added.join(', ')}`, flags: MessageFlags.Ephemeral });
+            } catch (e) {
+                console.error(e);
+                interaction.reply({ content: 'Could not update roles for selector', flags: MessageFlags.Ephemeral }).catch(console.error);
+            }
+            break;
     }
 }
 
@@ -326,7 +404,21 @@ async function roleselector(interaction, database) {
 async function editroleselector(interaction, database) {
     const guild = interaction.guild;
     const selectorId = interaction.values[0];
-    //
+    try {
+        const embed = await database.getEmbedFromSelectorId(guild.id, selectorId);
+
+        const editModal = new Modal()
+            .addTextComponent({ type: 'short', label: 'Selector title', max: 250, min: 1, placeholder: 'Enter the selector title', required: true, id: 'roles_edit_title', value: embed.title })
+            .addTextComponent({ type: 'paragraph', label: 'Selector description', max: 1000, min: 1, placeholder: 'Enter the selector description', required: true, id: 'roles_edit_description', value: embed.description })
+            .setTitle('Edit role selector')
+            .setCustomId('roles_edit_modal;' + internalId + ';' + selectorId)
+            .build();
+
+        await interaction.showModal(editModal);
+    } catch (e) {
+        console.error(e);
+        interaction.reply({ content: 'Could not open edit modal', flags: MessageFlags.Ephemeral }).catch(console.error);
+    }
 }
 
 async function deleteroleselector(interaction, database) {
