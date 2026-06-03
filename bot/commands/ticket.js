@@ -12,7 +12,7 @@ const DEFAULT_TICKET_DESCRIPTION_MIN_LENGTH = 20;
 
 // create a random numberic id
 const internalId = "2210adf889449ecdfd9c";
-const channelPrefixes = new Set();
+const channelPrefixes = new Map();
 
 Number.prototype.pad = function (n) {
     return new Array(n).join('0').slice((n || 2) * -1) + this;
