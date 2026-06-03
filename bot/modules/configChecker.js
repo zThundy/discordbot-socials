@@ -3,7 +3,7 @@ const path = require('path');
 
 function ensureConfig() {
     try {
-    const projectRoot = path.resolve(__dirname, '..', '..');
+        const projectRoot = path.resolve(__dirname, '..', '..');
         const configPath = path.join(projectRoot, 'config.json');
         if (fs.existsSync(configPath)) {
             // config already exists
