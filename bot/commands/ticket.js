@@ -544,7 +544,7 @@ async function interaction(interaction, database, _, config) {
             interaction.reply({ content: "Opening ticket...", flags: MessageFlags.Ephemeral }).then(() => {
                 database.getTicketConfig(guild.id).then((res) => {
                     if (res) {
-                        database.getLastTicketsId(guild.id).then(id => {
+                        database.getLastTicketsId(guild.id).then(async id => {
                             id = (Number(id) + 1).pad(4);
                             const ticketId = uuid();
                             const embed = {
@@ -611,7 +611,37 @@ async function interaction(interaction, database, _, config) {
                                 parentId = res.ticketsCategoryId;
                             } else {
                                 const found = guild.channels.cache.find(c => c.name.toLowerCase().trim() === "tickets" && c.type === ChannelType.GuildCategory);
-                                parentId = found ? found.id : undefined;
+                                if (found) {
+                                    parentId = found.id;
+                                } else {
+                                    // create the tickets category and persist it to DB
+                                    try {
+                                        const createdCategory = await guild.channels.create({ name: 'tickets', type: ChannelType.GuildCategory });
+                                        parentId = createdCategory.id;
+                                        // update stored ticket config with new category id
+                                        try {
+                                            // remove old config row and recreate with same values plus new category id
+                                            await database.deleteTicketConfig(guild.id);
+                                            await database.createTicketConfig(
+                                                guild.id,
+                                                res.tagRole,
+                                                res.title,
+                                                res.description,
+                                                res.transcriptChannel || '0',
+                                                parentId,
+                                                res.questionTitleRequired,
+                                                res.questionTitleMinLength,
+                                                res.questionDescriptionRequired,
+                                                res.questionDescriptionMinLength,
+                                                res.ticketsPrefix || 'ticket-'
+                                            );
+                                        } catch (dbErr) {
+                                            console.error("Failed to persist ticketsCategoryId to DB:", dbErr);
+                                        }
+                                    } catch (e) {
+                                        console.error("Failed to create tickets category:", e);
+                                    }
+                                }
                             }
 
                             // create the channel
