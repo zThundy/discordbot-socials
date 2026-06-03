@@ -74,6 +74,13 @@ class BOT {
                 if (command.module.userJoin)
                     command.module.userJoin(member, { database: this.database, uploader: this.uploader, config: this.config, client: this.client });
             });
+        } else if (event === "userLeave") {
+            const member = args[0];
+            // send a message event to all the commands
+            this.commands.forEach((command, string) => {
+                if (command.module.userLeave)
+                    command.module.userLeave(member, { database: this.database, uploader: this.uploader, config: this.config, client: this.client });
+            });
         }
     }
 
