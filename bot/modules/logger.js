@@ -21,9 +21,9 @@ class Logger {
         };
 
         this.checkFolder();
-    this.checkFile(this.logFile);
-    this.checkFile(this.errLogFile);
-    this.createStream();
+        this.checkFile(this.logFile);
+        this.checkFile(this.errLogFile);
+        this.createStream();
 
         this.internalId = this.id();
 

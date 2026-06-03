@@ -34,7 +34,8 @@ class SQL {
                 await this._run("CREATE TABLE IF NOT EXISTS pictures (guildId TEXT, uuid TEXT, url TEXT)");
                 // ticketing system tables
                 await this._run("CREATE TABLE IF NOT EXISTS tickets (id INTEGER, guildId TEXT, channelId TEXT, ticketOwner TEXT, ticketId TEXT, ticketTitle TEXT, ticketDescription TEXT)");
-                await this._run("CREATE TABLE IF NOT EXISTS ticketConfig (guildId TEXT, tagRole TEXT, title TEXT, description TEXT, transcriptChannel TEXT)");
+                await this._run("CREATE TABLE IF NOT EXISTS ticketConfig (guildId TEXT, tagRole TEXT, title TEXT, description TEXT, transcriptChannel TEXT, questionTitleRequired INTEGER, questionTitleMinLength INTEGER, questionDescriptionRequired INTEGER, questionDescriptionMinLength INTEGER)");
+                await this._ensureTicketConfigColumns();
                 await this._run("CREATE TABLE IF NOT EXISTS ticketMessages (ticketId TEXT, content TEXT, username TEXT, authorProfile TEXT, currentTime TEXT, color TEXT, orderDate TEXT, messageType TEXT, edited TEXT)");
                 // other tables
                 await this._run("CREATE TABLE IF NOT EXISTS nicknames (guildId TEXT, nickname TEXT)");
@@ -54,6 +55,43 @@ class SQL {
         return new Promise((resolve, reject) => {
             this.db.run(stmt, {}, () => { resolve() });
         })
+    }
+
+    _all(stmt, params = []) {
+        return new Promise((resolve, reject) => {
+            this.db.all(stmt, params, (err, rows) => {
+                if (err) reject(err);
+                resolve(rows);
+            });
+        });
+    }
+
+    async _ensureTicketConfigColumns() {
+        const rows = await this._all("PRAGMA table_info(ticketConfig)");
+        const columns = new Set(rows.map((row) => row.name));
+
+        if (!columns.has("questionTitleRequired")) {
+            await this._run("ALTER TABLE ticketConfig ADD COLUMN questionTitleRequired INTEGER DEFAULT 1");
+        }
+
+        if (!columns.has("questionTitleMinLength")) {
+            await this._run("ALTER TABLE ticketConfig ADD COLUMN questionTitleMinLength INTEGER DEFAULT 10");
+        }
+
+        if (!columns.has("questionDescriptionRequired")) {
+            await this._run("ALTER TABLE ticketConfig ADD COLUMN questionDescriptionRequired INTEGER DEFAULT 1");
+        }
+
+        if (!columns.has("questionDescriptionMinLength")) {
+            await this._run("ALTER TABLE ticketConfig ADD COLUMN questionDescriptionMinLength INTEGER DEFAULT 20");
+        }
+
+        if (!columns.has("ticketsCategoryId")) {
+            await this._run("ALTER TABLE ticketConfig ADD COLUMN ticketsCategoryId TEXT DEFAULT '0'");
+        }
+        if (!columns.has("ticketsPrefix")) {
+            await this._run("ALTER TABLE ticketConfig ADD COLUMN ticketsPrefix TEXT DEFAULT 'ticket-'");
+        }
     }
 
     /**
@@ -275,10 +313,10 @@ class SQL {
         });
     }
 
-    createTicketConfig(guildId, tagRole, title, description, transcriptChannel) {
+    createTicketConfig(guildId, tagRole, title, description, transcriptChannel, ticketsCategoryId = '0', questionTitleRequired, questionTitleMinLength, questionDescriptionRequired, questionDescriptionMinLength, ticketsPrefix = 'ticket-') {
         console.log("<DATABASE> createTicketConfig call");
         return new Promise((resolve, reject) => {
-            this.db.run("INSERT INTO ticketConfig (guildId, tagRole, title, description, transcriptChannel) VALUES (?, ?, ?, ?, ?)", [guildId, tagRole, title, description, transcriptChannel], (err, row) => {
+            this.db.run("INSERT INTO ticketConfig (guildId, tagRole, title, description, transcriptChannel, ticketsCategoryId, questionTitleRequired, questionTitleMinLength, questionDescriptionRequired, questionDescriptionMinLength, ticketsPrefix) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [guildId, tagRole, title, description, transcriptChannel, ticketsCategoryId, questionTitleRequired, questionTitleMinLength, questionDescriptionRequired, questionDescriptionMinLength, ticketsPrefix], (err, row) => {
                 if (err) reject(err);
                 resolve();
             });
