@@ -281,8 +281,8 @@ async function interaction(interaction, database, _, config) {
                         type: "short",
                         label: "Is the ticket title required? (yes/no)",
                         max: 5,
-                        min: 2,
-                        placeholder: "yes",
+                        min: 1,
+                        placeholder: "yes/y/1/true",
                         required: true,
                         id: "setup_title_required"
                     })
@@ -299,8 +299,8 @@ async function interaction(interaction, database, _, config) {
                         type: "short",
                         label: "Is the ticket description required? (yes/no)",
                         max: 5,
-                        min: 2,
-                        placeholder: "yes",
+                        min: 1,
+                        placeholder: "yes/y/1/true",
                         required: true,
                         id: "setup_description_required"
                     })
