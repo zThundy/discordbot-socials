@@ -13,36 +13,163 @@ class SQL {
                 this.db = new sqlite.Database(`./bot/data/main.db`);
                 // twitch tables
                 await this._run("CREATE TABLE IF NOT EXISTS twicth (guildId TEXT, channelId TEXT, channelName TEXT, discordChannel TEXT, twitchId TEXT, clipsChannelId TEXT, enableClips INTEGER)");
+                await this._ensureColumns("twicth", [
+                    { name: "guildId", type: "TEXT" },
+                    { name: "channelId", type: "TEXT" },
+                    { name: "channelName", type: "TEXT" },
+                    { name: "discordChannel", type: "TEXT" },
+                    { name: "twitchId", type: "TEXT" },
+                    { name: "clipsChannelId", type: "TEXT" },
+                    { name: "enableClips", type: "INTEGER" }
+                ]);
                 await this._run("CREATE TABLE IF NOT EXISTS twicthClips (guildId TEXT, channelId TEXT, channelName TEXT, discordChannel TEXT, clipId TEXT, data TEXT)");
+                await this._ensureColumns("twicthClips", [
+                    { name: "guildId", type: "TEXT" },
+                    { name: "channelId", type: "TEXT" },
+                    { name: "channelName", type: "TEXT" },
+                    { name: "discordChannel", type: "TEXT" },
+                    { name: "clipId", type: "TEXT" },
+                    { name: "data", type: "TEXT" }
+                ]);
                 // youtube tables
                 await this._run("CREATE TABLE IF NOT EXISTS youtube (guildId TEXT, channelId TEXT, channelName TEXT, discordChannel TEXT)");
+                await this._ensureColumns("youtube", [
+                    { name: "guildId", type: "TEXT" },
+                    { name: "channelId", type: "TEXT" },
+                    { name: "channelName", type: "TEXT" },
+                    { name: "discordChannel", type: "TEXT" }
+                ]);
                 await this._run("CREATE TABLE IF NOT EXISTS youtubeVideos (guildId TEXT, channelId TEXT, channelName TEXT, videoId TEXT)");
+                await this._ensureColumns("youtubeVideos", [
+                    { name: "guildId", type: "TEXT" },
+                    { name: "channelId", type: "TEXT" },
+                    { name: "channelName", type: "TEXT" },
+                    { name: "videoId", type: "TEXT" }
+                ]);
                 // twitter tables
                 await this._run("CREATE TABLE IF NOT EXISTS twitter (guildId TEXT, channelId TEXT, accountName TEXT, discordChannel TEXT, roleId TEXT)");
+                await this._ensureColumns("twitter", [
+                    { name: "guildId", type: "TEXT" },
+                    { name: "channelId", type: "TEXT" },
+                    { name: "accountName", type: "TEXT" },
+                    { name: "discordChannel", type: "TEXT" },
+                    { name: "roleId", type: "TEXT" }
+                ]);
                 await this._run("CREATE TABLE IF NOT EXISTS twitterTweets (guildId TEXT, channelId TEXT, accountName TEXT, tweetId TEXT)");
+                await this._ensureColumns("twitterTweets", [
+                    { name: "guildId", type: "TEXT" },
+                    { name: "channelId", type: "TEXT" },
+                    { name: "accountName", type: "TEXT" },
+                    { name: "tweetId", type: "TEXT" }
+                ]);
                 // store full tweet JSON data (one row per tweetId). fetchedAt is ms since epoch
                 await this._run("CREATE TABLE IF NOT EXISTS twitterData (guildId TEXT, channelId TEXT, accountName TEXT, tweetId TEXT PRIMARY KEY, data TEXT, fetchedAt INTEGER)");
+                await this._ensureColumns("twitterData", [
+                    { name: "guildId", type: "TEXT" },
+                    { name: "channelId", type: "TEXT" },
+                    { name: "accountName", type: "TEXT" },
+                    { name: "tweetId", type: "TEXT" },
+                    { name: "data", type: "TEXT" },
+                    { name: "fetchedAt", type: "INTEGER" }
+                ]);
                 // cache for twitter users: username -> json data, cachedAt timestamp (ms since epoch)
                 await this._run("CREATE TABLE IF NOT EXISTS twitterUsers (username TEXT PRIMARY KEY, data TEXT, cachedAt INTEGER)");
+                await this._ensureColumns("twitterUsers", [
+                    { name: "username", type: "TEXT" },
+                    { name: "data", type: "TEXT" },
+                    { name: "cachedAt", type: "INTEGER" }
+                ]);
                 // roles selector tables
                 await this._run("CREATE TABLE IF NOT EXISTS rolesSelector (guildId TEXT, selectorId TEXT, embed TEXT)");
+                await this._ensureColumns("rolesSelector", [
+                    { name: "guildId", type: "TEXT" },
+                    { name: "selectorId", type: "TEXT" },
+                    { name: "embed", type: "TEXT" }
+                ]);
                 await this._run("CREATE TABLE IF NOT EXISTS roles (guildId TEXT, selectorId TEXT, roleId TEXT, roleName TEXT)");
+                await this._ensureColumns("roles", [
+                    { name: "guildId", type: "TEXT" },
+                    { name: "selectorId", type: "TEXT" },
+                    { name: "roleId", type: "TEXT" },
+                    { name: "roleName", type: "TEXT" }
+                ]);
                 // multi roles selector tables
                 await this._run("CREATE TABLE IF NOT EXISTS multiRolesSelector (guildId TEXT, selectorId TEXT, embed TEXT, maxChoices INTEGER)");
+                await this._ensureColumns("multiRolesSelector", [
+                    { name: "guildId", type: "TEXT" },
+                    { name: "selectorId", type: "TEXT" },
+                    { name: "embed", type: "TEXT" },
+                    { name: "maxChoices", type: "INTEGER" }
+                ]);
                 await this._run("CREATE TABLE IF NOT EXISTS multiRoles (guildId TEXT, selectorId TEXT, roleId TEXT, roleName TEXT)");
+                await this._ensureColumns("multiRoles", [
+                    { name: "guildId", type: "TEXT" },
+                    { name: "selectorId", type: "TEXT" },
+                    { name: "roleId", type: "TEXT" },
+                    { name: "roleName", type: "TEXT" }
+                ]);
                 // uploader tables
                 await this._run("CREATE TABLE IF NOT EXISTS pictures (guildId TEXT, uuid TEXT, url TEXT)");
+                await this._ensureColumns("pictures", [
+                    { name: "guildId", type: "TEXT" },
+                    { name: "uuid", type: "TEXT" },
+                    { name: "url", type: "TEXT" }
+                ]);
                 // ticketing system tables
                 await this._run("CREATE TABLE IF NOT EXISTS tickets (id INTEGER, guildId TEXT, channelId TEXT, ticketOwner TEXT, ticketId TEXT, ticketTitle TEXT, ticketDescription TEXT)");
+                await this._ensureColumns("tickets", [
+                    { name: "id", type: "INTEGER" },
+                    { name: "guildId", type: "TEXT" },
+                    { name: "channelId", type: "TEXT" },
+                    { name: "ticketOwner", type: "TEXT" },
+                    { name: "ticketId", type: "TEXT" },
+                    { name: "ticketTitle", type: "TEXT" },
+                    { name: "ticketDescription", type: "TEXT" }
+                ]);
                 await this._run("CREATE TABLE IF NOT EXISTS ticketConfig (guildId TEXT, tagRole TEXT, title TEXT, description TEXT, transcriptChannel TEXT, questionTitleRequired INTEGER, questionTitleMinLength INTEGER, questionDescriptionRequired INTEGER, questionDescriptionMinLength INTEGER)");
-                await this._ensureTicketConfigColumns();
+                await this._ensureColumns("ticketConfig", [
+                    { name: "guildId", type: "TEXT" },
+                    { name: "tagRole", type: "TEXT" },
+                    { name: "title", type: "TEXT" },
+                    { name: "description", type: "TEXT" },
+                    { name: "transcriptChannel", type: "TEXT" },
+                    { name: "questionTitleRequired", type: "INTEGER" },
+                    { name: "questionTitleMinLength", type: "INTEGER" },
+                    { name: "questionDescriptionRequired", type: "INTEGER" },
+                    { name: "questionDescriptionMinLength", type: "INTEGER" }
+                ]);
                 await this._run("CREATE TABLE IF NOT EXISTS ticketMessages (ticketId TEXT, content TEXT, username TEXT, authorProfile TEXT, currentTime TEXT, color TEXT, orderDate TEXT, messageType TEXT, edited TEXT)");
+                await this._ensureColumns("ticketMessages", [
+                    { name: "ticketId", type: "TEXT" },
+                    { name: "content", type: "TEXT" },
+                    { name: "username", type: "TEXT" },
+                    { name: "authorProfile", type: "TEXT" },
+                    { name: "currentTime", type: "TEXT" },
+                    { name: "color", type: "TEXT" },
+                    { name: "orderDate", type: "TEXT" },
+                    { name: "messageType", type: "TEXT" },
+                    { name: "edited", type: "TEXT" }
+                ]);
                 // other tables
                 await this._run("CREATE TABLE IF NOT EXISTS nicknames (guildId TEXT, nickname TEXT)");
+                await this._ensureColumns("nicknames", [
+                    { name: "guildId", type: "TEXT" },
+                    { name: "nickname", type: "TEXT" }
+                ]);
                 // role sync
                 await this._run("CREATE TABLE IF NOT EXISTS syncrole (guildId TEXT, roleId TEXT, otherGuildId TEXT, otherRoleId TEXT)");
+                await this._ensureColumns("syncrole", [
+                    { name: "guildId", type: "TEXT" },
+                    { name: "roleId", type: "TEXT" },
+                    { name: "otherGuildId", type: "TEXT" },
+                    { name: "otherRoleId", type: "TEXT" }
+                ]);
                 // verify system
                 await this._run("CREATE TABLE IF NOT EXISTS verify (guildId TEXT, roleId TEXT)");
+                await this._ensureColumns("verify", [
+                    { name: "guildId", type: "TEXT" },
+                    { name: "roleId", type: "TEXT" }
+                ]);
                 resolve();
             } catch (err) {
                 console.error(err);
@@ -62,6 +189,32 @@ class SQL {
             this.db.all(stmt, params, (err, rows) => {
                 if (err) reject(err);
                 resolve(rows);
+            });
+        });
+    }
+
+    /**
+     * This function checks if the columns in the comlumns array exist in the table, and if not, it adds them.
+     * @param {string} tableName 
+     * @param {Array} comlumns 
+     * @returns 
+     */
+    _ensureColumns(tableName, comlumns) {
+        return new Promise((resolve, reject) => {
+            this.db.all(`PRAGMA table_info(${tableName})`, (err, rows) => {
+                if (err) reject(err);
+                const existingColumns = new Set(rows.map((row) => row.name));
+                const missingColumns = comlumns.filter((col) => !existingColumns.has(col.name));
+                if (missingColumns.length === 0) return resolve();
+                const alterPromises = missingColumns.map((col) => {
+                    return new Promise((res, rej) => {
+                        this.db.run(`ALTER TABLE ${tableName} ADD COLUMN ${col.name} ${col.type} DEFAULT ${col.default || 'NULL'}`, (err) => {
+                            if (err) rej(err);
+                            res();
+                        });
+                    });
+                });
+                Promise.all(alterPromises).then(() => resolve()).catch((err) => reject(err));
             });
         });
     }
@@ -298,18 +451,18 @@ class SQL {
         return new Promise((resolve, reject) => {
             this.db.run(`INSERT INTO tickets (id, guildId, channelId, ticketOwner, ticketId, ticketTitle, ticketDescription)
                          VALUES ($id, $guildId, $channelId, $ticketOwner, $ticketId, $ticketTitle, $ticketDescription)`,
-            {
-                $id: id,
-                $guildId: guildId,
-                $channelId: channelId,
-                $ticketOwner: ownerId,
-                $ticketId: ticketId,
-                $ticketTitle: title,
-                $ticketDescription: description
-            }, (err, row) => {
-                if (err) reject(err);
-                resolve();
-            });
+                {
+                    $id: id,
+                    $guildId: guildId,
+                    $channelId: channelId,
+                    $ticketOwner: ownerId,
+                    $ticketId: ticketId,
+                    $ticketTitle: title,
+                    $ticketDescription: description
+                }, (err, row) => {
+                    if (err) reject(err);
+                    resolve();
+                });
         });
     }
 
@@ -383,7 +536,7 @@ class SQL {
             });
         });
     }
-    
+
     // create a function that return roles and rolesSelector merged in one single array using selectorId as key
     getAllRolesAndSelectors(guildId) {
         console.log("<DATABASE> getAllRolesAndSelectors call");
@@ -398,7 +551,7 @@ class SQL {
                 for (var i in roles) rows[0].roles.push({ id: roles[i].roleId, name: roles[i].roleName });
                 resolve(rows);
             });
-        });   
+        });
     }
 
     getEmbedFromSelectorId(guildId, selectorId) {
@@ -482,7 +635,7 @@ class SQL {
             });
         });
     }
-    
+
     // create a function that return roles and rolesSelector merged in one single array using selectorId as key
     getAllMultiRolesAndSelectors(guildId) {
         console.log("<DATABASE> getAllMultiRolesAndSelectors call");
@@ -497,7 +650,7 @@ class SQL {
                 for (var i in roles) rows[0].roles.push({ id: roles[i].roleId, name: roles[i].roleName });
                 resolve(rows);
             });
-        });   
+        });
     }
 
     getEmbedFromMultiSelectorId(guildId, selectorId) {
@@ -720,7 +873,7 @@ class SQL {
             this.db.get("SELECT * FROM twitterData WHERE tweetId = ?", [tweetId], (err, row) => {
                 if (err) return reject(err);
                 if (!row) return resolve(null);
-                try { row.data = JSON.parse(row.data); } catch (e) {}
+                try { row.data = JSON.parse(row.data); } catch (e) { }
                 resolve(row);
             });
         });
