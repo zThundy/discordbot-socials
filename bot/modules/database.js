@@ -373,6 +373,9 @@ class SQL {
 
     deleteTwitchChannel(guildId, channelId, channelName) {
         console.log("<DATABASE> deleteTwitchChannel call");
+        // remove any stored clips for that channel first
+        this.db.run("DELETE FROM twicthClips WHERE guildId = ? AND channelId = ? AND channelName = ?", [guildId, channelId, channelName]);
+        // then remove the channel entry
         this.db.run("DELETE FROM twicth WHERE guildId = ? AND channelId = ? AND channelName = ?", [guildId, channelId, channelName]);
     }
 
