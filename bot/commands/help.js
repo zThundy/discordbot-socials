@@ -2,12 +2,15 @@ const { SlashCommandBuilder, MessageFlags } = require("discord.js");
 const { Timeout } = require("../modules/timeout.js");
 const timeout = new Timeout();
 
+const internalId = "g59oru49uj459ui8hu";
+
 function build() {
     const command = new SlashCommandBuilder();
     command.setName("help");
     command.setDescription("Shows a help message");
     command.setDMPermission(false);
     command.execute = execute;
+    command.id = internalId;
     return command;
 }
 
