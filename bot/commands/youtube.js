@@ -2,6 +2,7 @@ const { SlashCommandBuilder, PermissionsBitField, MessageFlags } = require('disc
 const { SelectMenu } = require('./elements/dropdown.js');
 const { Timeout } = require("../modules/timeout.js");
 const timeout = new Timeout();
+const { YoutubeAPI } = require('../modules/youtube.js');
 
 const internalId = "youtubecmd_" + Math.random().toString(36).substring(2, 8);
 
@@ -30,7 +31,11 @@ async function _getAllYoutubeChannels(interaction, database) {
     var channels = [];
     const res = await database.getAllYoutubeChannels(guild.id);
     if (res) {
+        const seen = new Set();
         res.forEach(entry => {
+            const key = entry.channelName ? String(entry.channelName).toLowerCase() : String(entry.channelId).toLowerCase();
+            if (seen.has(key)) return; // skip duplicates
+            seen.add(key);
             channels.push({
                 label: entry.channelName,
                 value: entry.channelName + ";" + entry.channelId,
@@ -109,16 +114,47 @@ async function addyoutube(interaction, database) {
     interaction.reply({ content: "Send the name or ID of the youtube channel you want to monitor\nor type **cancel** to cancel the operation", flags: MessageFlags.Ephemeral });
     const filter = m => m.author.id === interaction.user.id;
     const collector = interaction.channel.createMessageCollector({ filter, time: 15000 });
-    collector.on('collect', m => {
+    collector.on('collect', async m => {
         collector.stop();
         if (m.content.toLowerCase() == "cancel") {
             m.reply("Operation cancelled").then(msg => { setTimeout(() => { msg.delete(); m.delete(); }, 5000); });
             return;
-        } else {
-            channel.send(`Added youtube channel **${m.content}** to the monitor list`).then(msg => { setTimeout(() => { msg.delete(); m.delete(); }, 5000); });
         }
-        database.createYoutubeChannel(guild.id, channel.id, m.content, channel.name);
-        _addChannel({ guildId: guild.id, channelId: channel.id, channelName: m.content, discordChannel: channel.name });
+
+        const input = m.content.trim();
+        const youtubeApi = new YoutubeAPI();
+        // normalize handle: if user provided a plain name without @ and it's not a channel id, prepend @
+        let normalizedInput = input;
+        if (!/^UC[0-9A-Za-z_-]{22,}$/.test(input) && !input.startsWith('@') && /^[A-Za-z0-9_]{1,50}$/.test(input)) {
+            normalizedInput = '@' + input;
+        }
+        let resolvedId = null;
+        // if input is not already a channel id (UC...), try to resolve handles/URLs to channel id
+        if (!/^UC[0-9A-Za-z_-]{22,}$/.test(normalizedInput)) {
+            resolvedId = await youtubeApi.resolveHandleToChannelId(normalizedInput).catch(() => null);
+        }
+        const candidateNames = [normalizedInput.toLowerCase()];
+        if (resolvedId) candidateNames.unshift(resolvedId.toLowerCase());
+        try {
+            const existing = await database.getAllYoutubeChannels(guild.id);
+            const duplicate = existing && existing.some(e => {
+                if (!e) return false;
+                const name = e.channelName ? String(e.channelName).toLowerCase() : "";
+                // channelId in DB is the discord channel id; compare only channelName (youtube identifier)
+                return candidateNames.includes(name);
+            });
+            if (duplicate) {
+                m.reply(`Error: youtube channel **${input}** is already monitored`).then(msg => { setTimeout(() => { msg.delete(); m.delete(); }, 5000); });
+                return;
+            }
+        } catch (e) {
+            console.error('Error checking existing youtube channels', e);
+        }
+
+        const storeName = resolvedId || normalizedInput;
+        channel.send(`Added youtube channel **${normalizedInput}** to the monitor list`).then(msg => { setTimeout(() => { msg.delete(); m.delete(); }, 5000); });
+            database.createYoutubeChannel(guild.id, channel.id, normalizedInput, channel.name, resolvedId);
+            _addChannel({ guildId: guild.id, channelId: channel.id, channelName: normalizedInput, discordChannel: channel.name, youtubeChannelId: resolvedId });
     });
 }
 
@@ -140,6 +176,16 @@ async function interaction(interaction, database) {
         case 'removeyoutube':
             database.deleteYoutubeChannel(guild.id, values[1], values[0]);
             interaction.reply({ content: `Removed **${values[0]}** from the list of managed youtube channels`, flags: MessageFlags.Ephemeral });
+            // find and remove the channel from the cron monitoring
+            for (const uid in channels) {
+                const c = channels[uid];
+                if (c.guildId === guild.id && c.channelId === values[1] && c.channelName === values[0]) {
+                    _extra.cron.remove(c.uid);
+                    console.log(`<YOUTUBE> Removed channel ${values[0]} from monitoring and deleted cronjob with uid ${c.uid}`);
+                    delete channels[uid];
+                    break;
+                }
+            }
             break;
     }
 }
@@ -163,16 +209,19 @@ function _addChannel(channel) {
     var uid = _extra.cron.add(10 * 60 * 1000, async (uid) => { // check every 10 minutes
         if (!channels[uid]) return _extra.cron.remove(uid);
         const c = channels[uid];
+        const lookupName = c.youtubeChannelId || c.channelName;
+        const displayName = c.channelName;
+        console.log(`<YOUTUBE> Checking latest video for channel ${lookupName} (display ${displayName}) in guild ${c.guildId} and discord channel ${c.channelId}`);
         try {
-            const video = await _extra.youtube.getLatestVideo(c.channelName);
-            if (!video) return;
+            const video = await _extra.youtube.getLatestVideo(lookupName);
+            if (!video) return console.warn(`<YOUTUBE> No videos found for channel ${lookupName}`);
             const videoId = String(video.id);
-            const alreadySent = await _extra.database.isYoutubeVideoAlreadySend(c.guildId, c.channelId, c.channelName, videoId);
+            const alreadySent = await _extra.database.isYoutubeVideoAlreadySend(c.guildId, c.channelId, lookupName, videoId);
             if (!alreadySent) {
                 _extra.client.channels.fetch(c.channelId).then(ch => {
                     const embeds = _extra.youtube.getEmbed(video);
-                    ch.send({ content: `@everyone **${c.channelName}** uploaded a new video!\n\n<${video.link}>`, embeds }).catch(console.error);
-                    _extra.database.insertNewYoutubeVideo(c.guildId, c.channelId, c.channelName, videoId);
+                    ch.send({ content: `@everyone **${displayName}** uploaded a new video!`, embeds }).catch(console.error);
+                    _extra.database.insertNewYoutubeVideo(c.guildId, c.channelId, lookupName, videoId);
                 }).catch(console.error);
             }
         } catch (e) {

@@ -32,12 +32,13 @@ class SQL {
                     { name: "data", type: "TEXT" }
                 ]);
                 // youtube tables
-                await this._run("CREATE TABLE IF NOT EXISTS youtube (guildId TEXT, channelId TEXT, channelName TEXT, discordChannel TEXT)");
+                await this._run("CREATE TABLE IF NOT EXISTS youtube (guildId TEXT, channelId TEXT, channelName TEXT, discordChannel TEXT, youtubeChannelId TEXT)");
                 await this._ensureColumns("youtube", [
                     { name: "guildId", type: "TEXT" },
                     { name: "channelId", type: "TEXT" },
                     { name: "channelName", type: "TEXT" },
-                    { name: "discordChannel", type: "TEXT" }
+                    { name: "discordChannel", type: "TEXT" },
+                    { name: "youtubeChannelId", type: "TEXT" }
                 ]);
                 await this._run("CREATE TABLE IF NOT EXISTS youtubeVideos (guildId TEXT, channelId TEXT, channelName TEXT, videoId TEXT)");
                 await this._ensureColumns("youtubeVideos", [
@@ -882,9 +883,9 @@ class SQL {
         });
     }
 
-    createYoutubeChannel(guildId, channelId, channelName, discordChannel) {
+    createYoutubeChannel(guildId, channelId, channelName, discordChannel, youtubeChannelId = null) {
         console.log("<DATABASE> createYoutubeChannel call");
-        this.db.run("INSERT INTO youtube VALUES (?, ?, ?, ?)", [guildId, channelId, channelName, discordChannel]);
+        this.db.run("INSERT INTO youtube VALUES (?, ?, ?, ?, ?)", [guildId, channelId, channelName, discordChannel, youtubeChannelId]);
     }
 
     deleteYoutubeChannel(guildId, channelId, channelName) {
