@@ -12,10 +12,11 @@ function build() {
 }
 
 async function execute(interaction, _, _, config) {
-    const user = interaction.user.id;
+    const user = interaction.user;
+    const guild = interaction.guild;
     if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", flags: MessageFlags.Ephemeral });
     // add timeout to the user
-    timeout.addTimeout(user);
+    timeout.addTimeout(user, { guild: guild });
 
     const embed = {
         title: "Help",

@@ -214,10 +214,11 @@ async function edit(interaction, database) {
 
 // interaction command
 async function interaction(interaction, database) {
-    const user = interaction.user.id;
+    const user = interaction.user;
+    const guild = interaction.guild;
     if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", flags: MessageFlags.Ephemeral });
     // add timeout to the user
-    timeout.addTimeout(user);
+    timeout.addTimeout(user, { guild: guild });
 
     // get the action to perform
     const action = interaction.customId.split(";")[0];

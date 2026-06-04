@@ -27,10 +27,11 @@ function build() {
 }
 
 function execute(interaction, database) {
-    const user = interaction.user.id;
+    const user = interaction.user;
+    const guild = interaction.guild;
     if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", flags: MessageFlags.Ephemeral });
     // add timeout to the user
-    timeout.addTimeout(user);
+    timeout.addTimeout(user, { guild: guild });
 
     const args = interaction.options;
     switch (args.getString('action')) {
@@ -135,11 +136,11 @@ function create(interaction, database) {
 
 async function interaction(interaction, database) {
     try {
-        const user = interaction.user.id;
+        const user = interaction.user;
         const guild = interaction.guild;
         if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", flags: MessageFlags.Ephemeral });
         // add timeout to the user
-        timeout.addTimeout(user);
+        timeout.addTimeout(user, { guild: guild });
         // check if user has the role already
         const roleID = interaction.customId.split(";")[3];
         await guild.roles.fetch(roleID);

@@ -126,13 +126,13 @@ async function removetwitch(interaction, database) {
 }
 
 async function interaction(interaction, database) {
-    const userId = interaction.user.id;
-    if (timeout.checkTimeout(userId)) return interaction.reply({ content: "You're doing that too fast", flags: MessageFlags.Ephemeral });
+    const user = interaction.user;
+    const guild = interaction.guild;
+    if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", flags: MessageFlags.Ephemeral });
     // add timeout to the user
-    timeout.addTimeout(userId);
+    timeout.addTimeout(user, { guild: guild });
 
     console.log(" > Twitch interaction received");
-    const guild = interaction.guild;
     // const channel = interaction.channel;
     const customId = interaction.customId;
     var values = interaction.values;

@@ -54,10 +54,11 @@ const _getFields = (client) => {
 }
 
 async function execute(interaction, database, client) {
-    const user = interaction.user.id;
+    const user = interaction.user;
+    const guild = interaction.guild;
     if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", flags: MessageFlags.Ephemeral });
     // add timeout to the user
-    timeout.addTimeout(user);
+    timeout.addTimeout(user, { guild: guild });
 
     var description = "This bot has been completly developed and tested by <@341296805646041100> [zThundy]\n" +
                       "If you want to check the code please visit the [GitHub repository](https://github.com/zThundy/discordbot-socials)\n" +

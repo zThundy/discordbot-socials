@@ -76,13 +76,13 @@ async function setchannelclips(interaction, database) {
 }
 
 async function interaction(interaction, database) {
-    const user = interaction.user.id;
+    const user = interaction.user;
+    const guild = interaction.guild;
     if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", flags: MessageFlags.Ephemeral });
     // add timeout to the user
-    timeout.addTimeout(user);
+    timeout.addTimeout(user, { guild: guild });
 
     console.log(" > Twitch clips interaction received");
-    const guild = interaction.guild;
     // const channel = interaction.channel;
     const customId = interaction.customId;
     var values = interaction.values;

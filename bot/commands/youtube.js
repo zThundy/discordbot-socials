@@ -123,11 +123,11 @@ async function addyoutube(interaction, database) {
 }
 
 async function interaction(interaction, database) {
-    const userId = interaction.user.id;
-    if (timeout.checkTimeout(userId)) return interaction.reply({ content: "You're doing that too fast", flags: MessageFlags.Ephemeral });
-    timeout.addTimeout(userId);
-
+    const user = interaction.user;
     const guild = interaction.guild;
+    if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", flags: MessageFlags.Ephemeral });
+    timeout.addTimeout(user, { guild: guild });
+
     const customId = interaction.customId;
     var values = interaction.values;
     if (values[0].includes(";")) values = values[0].split(";");

@@ -725,11 +725,9 @@ async function interaction(interaction, database, _, config) {
             }).catch(e => console.error(e));
             break;
         case "ticketcreate":
-            if (!setupActions.has(action)) {
-                if (timeout.checkTimeout(userId)) return interaction.reply({ content: "You're doing that too fast", flags: MessageFlags.Ephemeral });
-                // add timeout to the user
-                timeout.addTimeout(userId);
-            }
+            if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", flags: MessageFlags.Ephemeral });
+            // add timeout to the user
+            timeout.addTimeout(user, { guild: guild });
 
             database.getTicketConfig(guild.id).then((res) => {
                 if (!res) {
