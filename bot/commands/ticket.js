@@ -544,8 +544,8 @@ async function interaction(interaction, database, _, config) {
             interaction.reply({ content: "Opening ticket...", flags: MessageFlags.Ephemeral }).then(() => {
                 database.getTicketConfig(guild.id).then((res) => {
                     if (res) {
-                        database.getLastTicketsId(guild.id).then(async id => {
-                            id = (Number(id) + 1).pad(4);
+                        database.getNextTicketId(guild.id).then(async id => {
+                            id = Number(id).pad(4);
                             const ticketId = uuid();
                             const embed = {
                                 title: "Ticket " + id,

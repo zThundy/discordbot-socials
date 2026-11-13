@@ -1,5 +1,5 @@
 const fs = require("fs");
-const request = require("request");
+const { downloadFile } = require("./httpDownload");
 
 class Uploader {
     constructor(cron, config) {
@@ -72,9 +72,7 @@ class Uploader {
 
     downloadAttachment(url) {
         const uuid = this.uuidv4();
-        request.get(url)
-            .on('error', console.error)
-            .pipe(fs.createWriteStream(this.homePath + "/" + uuid));
+        downloadFile(url, this.homePath + "/" + uuid).catch(console.error);
         return "http://" + this.ip + ":" + this.port + "/?key=" + uuid;
     }
 

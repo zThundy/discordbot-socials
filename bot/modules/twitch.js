@@ -1,7 +1,6 @@
 const https = require("https");
 const path = require("path");
-const request = require("request");
-const fs = require("fs");
+const { downloadFile } = require("./httpDownload");
 const { AttachmentBuilder } = require("discord.js");
 
 class TwitchApi {
@@ -165,13 +164,8 @@ class TwitchApi {
     }
 
     _downloadPic(url, name) {
-        return new Promise((resolve, reject) => {
-            const picPath = path.resolve("./", "bot", "images", `${name}.png`);
-            request.head(url, (err, res, body) => {
-                if (err) return reject(err);
-                request(url).pipe(fs.createWriteStream(picPath).on("close", () => resolve(picPath)).on("close", () => resolve(picPath)));
-            });
-        })
+        const picPath = path.resolve("./", "bot", "images", `${name}.png`);
+        return downloadFile(url, picPath);
     }
 
     getEmbed(stream) {

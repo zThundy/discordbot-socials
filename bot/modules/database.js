@@ -12,7 +12,7 @@ class SQL {
             try {
                 this.db = new sqlite.Database(`./bot/data/main.db`);
                 // twitch tables
-                await this._run("CREATE TABLE IF NOT EXISTS twicth (guildId TEXT, channelId TEXT, channelName TEXT, discordChannel TEXT, twitchId TEXT, clipsChannelId TEXT, enableClips INTEGER)");
+                await this._run("CREATE TABLE IF NOT EXISTS twicth (guildId TEXT, channelId TEXT, channelName TEXT, discordChannel TEXT, twitchId TEXT, clipsChannelId TEXT, enableClips INTEGER, notificationRoleId TEXT)");
                 await this._ensureColumns("twicth", [
                     { name: "guildId", type: "TEXT" },
                     { name: "channelId", type: "TEXT" },
@@ -20,7 +20,8 @@ class SQL {
                     { name: "discordChannel", type: "TEXT" },
                     { name: "twitchId", type: "TEXT" },
                     { name: "clipsChannelId", type: "TEXT" },
-                    { name: "enableClips", type: "INTEGER" }
+                    { name: "enableClips", type: "INTEGER" },
+                    { name: "notificationRoleId", type: "TEXT" }
                 ]);
                 await this._run("CREATE TABLE IF NOT EXISTS twicthClips (guildId TEXT, channelId TEXT, channelName TEXT, discordChannel TEXT, clipId TEXT, data TEXT)");
                 await this._ensureColumns("twicthClips", [
@@ -127,6 +128,7 @@ class SQL {
                     { name: "ticketTitle", type: "TEXT" },
                     { name: "ticketDescription", type: "TEXT" }
                 ]);
+                await this._run("CREATE TABLE IF NOT EXISTS ticketCounters (guildId TEXT PRIMARY KEY, lastId INTEGER NOT NULL)");
                 await this._run("CREATE TABLE IF NOT EXISTS ticketConfig (guildId TEXT, tagRole TEXT, title TEXT, description TEXT, transcriptChannel TEXT, questionTitleRequired INTEGER, questionTitleMinLength INTEGER, questionDescriptionRequired INTEGER, questionDescriptionMinLength INTEGER)");
                 await this._ensureColumns("ticketConfig", [
                     { name: "guildId", type: "TEXT" },
@@ -137,7 +139,9 @@ class SQL {
                     { name: "questionTitleRequired", type: "INTEGER" },
                     { name: "questionTitleMinLength", type: "INTEGER" },
                     { name: "questionDescriptionRequired", type: "INTEGER" },
-                    { name: "questionDescriptionMinLength", type: "INTEGER" }
+                    { name: "questionDescriptionMinLength", type: "INTEGER" },
+                    { name: "ticketsCategoryId", type: "TEXT" },
+                    { name: "ticketsPrefix", type: "TEXT" }
                 ]);
                 await this._run("CREATE TABLE IF NOT EXISTS ticketMessages (ticketId TEXT, content TEXT, username TEXT, authorProfile TEXT, currentTime TEXT, color TEXT, orderDate TEXT, messageType TEXT, edited TEXT)");
                 await this._ensureColumns("ticketMessages", [
@@ -256,9 +260,23 @@ class SQL {
         console.log("<DATABASE> getSyncRole call");
         return new Promise((resolve, reject) => {
             this.db.all("SELECT * FROM syncrole WHERE guildId = ?", [guildId], (err, rows) => {
-                if (err) reject(err);
+                if (err) return reject(err);
                 resolve(rows);
             });
+        });
+    }
+
+    getSyncRoleMappingsForGuild(guildId) {
+        console.log("<DATABASE> getSyncRoleMappingsForGuild call");
+        return new Promise((resolve, reject) => {
+            this.db.all(
+                "SELECT * FROM syncrole WHERE guildId = ? OR otherGuildId = ?",
+                [guildId, guildId],
+                (err, rows) => {
+                    if (err) return reject(err);
+                    resolve(rows);
+                }
+            );
         });
     }
 
@@ -286,19 +304,23 @@ class SQL {
         console.log("<DATABASE> addSyncRole call");
         return new Promise((resolve, reject) => {
             this.db.run("INSERT INTO syncrole VALUES (?, ?, ?, ?)", [guildId, roleId, otherGuildId, otherRoleId], (err) => {
-                if (err) reject(err);
+                if (err) return reject(err);
                 resolve();
             });
         });
     }
 
-    deleteSyncRole(guildId, roleId) {
+    deleteSyncRole(guildId, roleId, otherGuildId, otherRoleId) {
         console.log("<DATABASE> deleteSyncRole call");
         return new Promise((resolve, reject) => {
-            this.db.run("DELETE FROM syncrole WHERE guildId = ? AND roleId = ?", [guildId, roleId], (err) => {
-                if (err) reject(err);
-                resolve();
-            });
+            this.db.run(
+                "DELETE FROM syncrole WHERE guildId = ? AND roleId = ? AND otherGuildId = ? AND otherRoleId = ?",
+                [guildId, roleId, otherGuildId, otherRoleId],
+                (err) => {
+                    if (err) return reject(err);
+                    resolve();
+                }
+            );
         });
     }
 
@@ -351,9 +373,18 @@ class SQL {
         this.db.run("UPDATE twicth SET clipsChannelId = ? WHERE guildId = ? AND channelName = ?", [clipsChannelId, guildId, channelName]);
     }
 
-    createTwitchChannel(guildId, channelId, channelName, discordChannel) {
+    createTwitchChannel(guildId, channelId, channelName, discordChannel, notificationRoleId) {
         console.log("<DATABASE> createTwitchChannel call");
-        this.db.run("INSERT INTO twicth VALUES (?, ?, ?, ?, ?, ?, ?)", [guildId, channelId, channelName, discordChannel, 0, 0, 0]);
+        return new Promise((resolve, reject) => {
+            this.db.run(
+                "INSERT INTO twicth (guildId, channelId, channelName, discordChannel, twitchId, clipsChannelId, enableClips, notificationRoleId) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                [guildId, channelId, channelName, discordChannel, 0, 0, 0, notificationRoleId],
+                (error) => {
+                    if (error) return reject(error);
+                    resolve();
+                }
+            );
+        });
     }
 
     updateTwitchId(guildId, channelName, twitchId) {
@@ -423,15 +454,28 @@ class SQL {
         this.db.run("DELETE FROM ticketMessages WHERE ticketId = $id", { $id: ticketId })
     }
 
-    getLastTicketsId(guildId) {
-        console.log("<DATABASE> getLastTicketsId call");
+    getNextTicketId(guildId) {
+        console.log("<DATABASE> getNextTicketId call");
         return new Promise((resolve, reject) => {
-            this.db.all("SELECT id FROM tickets WHERE guildId = ? ORDER BY id DESC", [guildId], (err, rows) => {
-                if (err) reject(err);
-                if (rows[0]) resolve(rows[0]["id"]);
-                else resolve(0);
-            })
-        })
+            this.db.get(
+                `INSERT INTO ticketCounters (guildId, lastId)
+                 VALUES (?, (SELECT COALESCE(MAX(id), 0) + 1 FROM tickets WHERE guildId = ?))
+                 ON CONFLICT(guildId) DO UPDATE SET lastId = ticketCounters.lastId + 1
+                 RETURNING lastId`,
+                [guildId, guildId],
+                (err, row) => {
+                    if (err) {
+                        reject(err);
+                        return;
+                    }
+                    if (!row) {
+                        reject(new Error("Failed to allocate a ticket ID."));
+                        return;
+                    }
+                    resolve(row.lastId);
+                }
+            );
+        });
     }
 
     getTicket(ticketId) {

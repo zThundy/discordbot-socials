@@ -1,4 +1,15 @@
-const { SlashCommandBuilder, PermissionsBitField, MessageFlags } = require("discord.js");
+const {
+    SlashCommandBuilder,
+    PermissionsBitField,
+    MessageFlags,
+    ModalBuilder,
+    LabelBuilder,
+    TextInputBuilder,
+    TextInputStyle,
+    ChannelSelectMenuBuilder,
+    RoleSelectMenuBuilder,
+    ChannelType
+} = require("discord.js");
 const { SelectMenu } = require("./elements/dropdown.js");
 const { Timeout } = require("../modules/timeout.js");
 const timeout = new Timeout();
@@ -15,7 +26,7 @@ function build(guild) {
     command.addStringOption((option) => {
         option.setName('action')
             .setDescription("Choose the action to perform")
-            .setRequired(true)
+            .setRequired(false)
             .addChoices({ name: '📜 List', value: 'listtwitch' })
             .addChoices({ name: '✅ Add', value: 'addtwitch' })
             .addChoices({ name: '❌ Remove', value: 'removetwitch' })
@@ -25,6 +36,44 @@ function build(guild) {
     command.id = internalId;
     command.execute = execute;
     return command;
+}
+
+function buildAddTwitchModal() {
+    const channelNameInput = new TextInputBuilder()
+        .setCustomId("twitch-channel-name")
+        .setStyle(TextInputStyle.Short)
+        .setMinLength(1)
+        .setMaxLength(25)
+        .setRequired(true);
+
+    const discordChannelSelect = new ChannelSelectMenuBuilder()
+        .setCustomId("twitch-discord-channel")
+        .setPlaceholder("Select an announcement channel")
+        .setChannelTypes([ChannelType.GuildText, ChannelType.GuildAnnouncement])
+        .setRequired(true)
+        .setMaxValues(1);
+
+    const roleSelect = new RoleSelectMenuBuilder()
+        .setCustomId("twitch-notification-role")
+        .setPlaceholder("No role (mention everyone)")
+        .setRequired(false)
+        .setMaxValues(1);
+
+    return new ModalBuilder()
+        .setCustomId("addtwitch;" + internalId)
+        .setTitle("Configure Twitch notifications")
+        .addLabelComponents(
+            new LabelBuilder()
+                .setLabel("Twitch channel name")
+                .setTextInputComponent(channelNameInput),
+            new LabelBuilder()
+                .setLabel("Discord announcement channel")
+                .setChannelSelectMenuComponent(discordChannelSelect),
+            new LabelBuilder()
+                .setLabel("Role to mention (optional)")
+                .setDescription("Leave empty to mention everyone.")
+                .setRoleSelectMenuComponent(roleSelect)
+        );
 }
 
 // internal functions
@@ -56,36 +105,18 @@ async function _getAllTwitchChannels(interaction, database) {
 
 async function execute(interaction, database) {
     console.log(" > Twitch command executed");
-    const guild = interaction.guild;
-    const channel = interaction.channel;
-    const args = interaction.options;
-    const action = args.getString('action');
+    const action = interaction.options.getString('action');
+    if (!action || action === 'addtwitch') {
+        interaction.showModal(buildAddTwitchModal()).catch(console.error);
+        return;
+    }
+
     switch (action) {
         case 'listtwitch':
-            listtwich(interaction, database);
-            break;
-        case 'addtwitch':
-            interaction.reply({
-                content: "Send the name of the channel you want to add to the list",
-                flags: MessageFlags.Ephemeral
-            });
-            const filter = m => m.author.id === interaction.user.id;
-            const collector = interaction.channel.createMessageCollector({ filter, time: 15000 });
-            collector.on('collect', m => {
-                collector.stop();
-                channel.send(`Added channel **${m.content}** to the twitch list`)
-                    .then(msg => {
-                        setTimeout(() => {
-                            msg.delete();
-                            m.delete();
-                        }, 5000);
-                    });
-                database.createTwitchChannel(guild.id, channel.id, m.content, channel.name);
-                _addChannel({ guildId: guild.id, channelId: channel.id, channelName: m.content, discordChannel: channel.name });
-            });
+            listtwich(interaction, database).catch(console.error);
             break;
         case 'removetwitch':
-            removetwitch(interaction, database);
+            removetwitch(interaction, database).catch(console.error);
             break;
         default:
             await interaction.reply({ content: "Unknown action", flags: MessageFlags.Ephemeral });
@@ -126,6 +157,19 @@ async function removetwitch(interaction, database) {
 }
 
 async function interaction(interaction, database) {
+    if (interaction.isModalSubmit()) {
+        addTwitchChannel(interaction, database).catch(async (error) => {
+            console.error("Failed to add Twitch channel", error);
+            if (!interaction.replied) {
+                await interaction.reply({
+                    content: "Failed to add the Twitch channel. Check the bot logs and try again.",
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+        });
+        return;
+    }
+
     const user = interaction.user;
     const guild = interaction.guild;
     if (timeout.checkTimeout(user)) return interaction.reply({ content: "You're doing that too fast", flags: MessageFlags.Ephemeral });
@@ -170,6 +214,41 @@ async function interaction(interaction, database) {
     }
 }
 
+async function addTwitchChannel(interaction, database) {
+    const guild = interaction.guild;
+    const channelName = interaction.fields.getTextInputValue("twitch-channel-name").trim();
+    const discordChannel = interaction.fields.getSelectedChannels("twitch-discord-channel", true).first();
+    const notificationRole = interaction.fields.getSelectedRoles("twitch-notification-role")?.first() || null;
+
+    if (!/^[a-zA-Z0-9_]{1,25}$/.test(channelName)) {
+        await interaction.reply({
+            content: "Enter a valid Twitch channel name (letters, numbers, or underscores; up to 25 characters).",
+            flags: MessageFlags.Ephemeral
+        });
+        return;
+    }
+
+    await database.createTwitchChannel(
+        guild.id,
+        discordChannel.id,
+        channelName,
+        discordChannel.name,
+        notificationRole?.id || null
+    );
+    _addChannel({
+        guildId: guild.id,
+        channelId: discordChannel.id,
+        channelName,
+        discordChannel: discordChannel.name,
+        notificationRoleId: notificationRole?.id || null
+    });
+
+    await interaction.reply({
+        content: `Added Twitch channel **${channelName}** for <#${discordChannel.id}>. Announcements will mention the selected role, or everyone if no role was selected.`,
+        flags: MessageFlags.Ephemeral
+    });
+}
+
 // this is bad but i don't give a fuck
 var _extra = null;
 async function init(database, extra) {
@@ -200,8 +279,12 @@ function _addChannel(channel) {
                             // send the message
                             _extra.twitch.getEmbed(stream)
                                 .then(data => {
+                                    const notificationRoleId = channels[uid].notificationRoleId;
                                     discordChannel.send({
-                                        content: `@everyone **${channels[uid].channelName}** is now live on Twitch!\n\nhttps://twitch.tv/${channels[uid].channelName}`,
+                                        content: `${notificationRoleId ? `<@&${notificationRoleId}>` : "@everyone"} **${channels[uid].channelName}** is now live on Twitch!\n\nhttps://twitch.tv/${channels[uid].channelName}`,
+                                        allowedMentions: notificationRoleId
+                                            ? { parse: [], roles: [notificationRoleId] }
+                                            : { parse: ["everyone"] },
                                         embeds: data.embeds,
                                         files: data.files
                                     });
