@@ -547,6 +547,10 @@ async function interaction(interaction, database, _, config) {
                         database.getNextTicketId(guild.id).then(async id => {
                             id = Number(id).pad(4);
                             const ticketId = uuid();
+                            const retentionDays = Number(config.uploader.deleteFilesAfterDays ?? 1);
+                            const disclaimer = config.uploader.deleteFiles
+                                ? `Uploaded files are automatically deleted after ${retentionDays} day${retentionDays === 1 ? "" : "s"}.`
+                                : "Automatic deletion of uploaded files is disabled.";
                             const embed = {
                                 title: "Ticket " + id,
                                 color: 0x00FF00,
@@ -566,6 +570,10 @@ async function interaction(interaction, database, _, config) {
                                     {
                                         name: "Description",
                                         value: description
+                                    },
+                                    {
+                                        name: "Disclaimer",
+                                        value: disclaimer
                                     }
                                 ]
                             };
@@ -769,106 +777,177 @@ async function interaction(interaction, database, _, config) {
     }
 }
 
-function message(event, message, newMessage, { database, uploader, config }) {
-    const guild = message.guild;
-    const channelPrefix = channelPrefixes.get(guild.id) || 'ticket-';
+function message(event, message, newMessage, { database, uploader }) {
+    const channelPrefix = channelPrefixes.get(message.guild.id) || "ticket-";
+    if (!message.channel.name.includes(channelPrefix) || !message.channel.topic) return;
 
-    if (message.channel.name.includes(channelPrefix) && message.channel.topic) {
-        message.guild.members.fetch(message.author.id)
-            .then(m => {
-                console.log("<TICKET> Logging message in ticket " + message.channel.name);
-                const dateFormat = message.createdAt;
-                var date = ('0' + dateFormat.getDate()).slice(-2) +
-                    "/" + ('0' + (dateFormat.getMonth() + 1)).slice(-2) +
-                    "/" + dateFormat.getFullYear() +
-                    " " + ('0' + dateFormat.getHours()).slice(-2) +
-                    ":" + ('0' + dateFormat.getMinutes()).slice(-2) +
-                    ":" + ('0' + dateFormat.getSeconds()).slice(-2)
+    return message.guild.members.fetch(message.author.id).then(async member => {
+        const currentMessage = event === "messageUpdate" && newMessage ? newMessage : message;
+        const createdAt = currentMessage.createdAt;
+        const date = ('0' + createdAt.getDate()).slice(-2) +
+            "/" + ('0' + (createdAt.getMonth() + 1)).slice(-2) +
+            "/" + createdAt.getFullYear() +
+            " " + ('0' + createdAt.getHours()).slice(-2) +
+            ":" + ('0' + createdAt.getMinutes()).slice(-2) +
+            ":" + ('0' + createdAt.getSeconds()).slice(-2);
+        if (event === "messageUpdate") {
+            const content = await transformMessageContent(currentMessage, uploader);
+            const updated = await database.updateTicketMessage(
+                message.channel.topic, currentMessage.id, message.content, content
+            );
+            if (!updated && content) {
+                await database.addTicketMessage(
+                    message.channel.topic, content, currentMessage.author.username, currentMessage.author.avatarURL(),
+                    date, member.displayHexColor, createdAt, "text", "true", currentMessage.id
+                );
+            }
+            return;
+        }
 
+        try {
+            const content = await transformMessageContent(currentMessage, uploader);
+            if (content) {
+                await database.addTicketMessage(
+                    message.channel.topic, content, currentMessage.author.username, currentMessage.author.avatarURL(),
+                    date, member.displayHexColor, createdAt, "text", "false", currentMessage.id
+                );
+            }
 
-                var type = "text";
-                const attachments = [];
-
-                if (message.attachments.size > 0) {
-                    console.log("<TICKET> Found attachments in message");
-                    message.attachments.forEach((attachment) => {
-                        console.log("<TICKET> Found attachment:", attachment.url, attachment.name, attachment.contentType);
-
-                        // images
-                        // test for urls ending with .jpg, .jpeg, .png, .webp, .avif, .gif, .svg or names with image content type
-                        if ((/^https?:\/\/.+\jpg|jpeg|png|webp|avif|gif|svg$/i).test(attachment.url) || (attachment.contentType && attachment.contentType.startsWith("image/"))) {
-                            type = "image";
-                            attachments.push({
-                                file: uploader.downloadAttachment(attachment.url),
-                                type
-                            });
-                        }
-
-                        // videos
-                        // test for urls ending with .mp4, .mkv or names with video content type
-                        if ((/^(http(s)?:\/\/|www\.).*(\.mp4|\.mkv)$/gmi).test(attachment.url) || (attachment.contentType && attachment.contentType.startsWith("video/"))) {
-                            type = "video";
-                            attachments.push({
-                                file: uploader.downloadAttachment(attachment.url),
-                                type
-                            });
-                        }
-
-                        // audio files
-                        // test for urls ending with .mp3, .wav, .m4a, .ogg, .aac or names with audio content type
-                        else if ((/^(http(s)?:\/\/|www\.).*(\.mp3|\.wav|\.m4a|\.ogg|\.aac)$/gmi).test(attachment.url) || (attachment.contentType && attachment.contentType.startsWith("audio/"))) {
-                            type = "audio";
-                            attachments.push({
-                                file: uploader.downloadAttachment(attachment.url),
-                                type
-                            });
-                        }
-                        console.log("<TICKET> Found attachment of type " + type);
-                    });
+            for (const attachment of currentMessage.attachments.values()) {
+                try {
+                    const url = await uploader.downloadAttachment(
+                        attachment.url, attachment.name, attachment.contentType
+                    );
+                    await database.addTicketMessage(
+                        message.channel.topic,
+                        JSON.stringify({
+                            url,
+                            name: attachment.name,
+                            contentType: attachment.contentType,
+                            size: attachment.size
+                        }),
+                        currentMessage.author.username,
+                        currentMessage.author.avatarURL(),
+                        date,
+                        member.displayHexColor,
+                        createdAt,
+                        "attachment",
+                        "false",
+                        currentMessage.id
+                    );
+                } catch (error) {
+                    console.error("Failed to download ticket attachment", attachment.url, error);
                 }
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    }).catch(error => console.error(error));
+}
 
-                if (event === "messageUpdate") {
-                    database.updateTicketMessage(message.channel.topic, message.content, newMessage.content).catch(e => console.error(e));
+async function transformMessageContent(message, uploader) {
+    let content = message.content || "";
+    const downloadedImagePaths = new Set();
+    if (content) {
+        content = await replaceCustomEmojis(content, uploader);
+        content = await replaceImageLinks(content, uploader, downloadedImagePaths);
+        content = await replaceUnicodeEmojis(content, uploader);
+    }
+
+    const embeddedMedia = await downloadEmbeddedMedia(message.embeds, uploader, downloadedImagePaths);
+    if (embeddedMedia) {
+        content = content ? `${content}<br/>${embeddedMedia}` : embeddedMedia;
+    }
+    return content;
+}
+
+async function downloadEmbeddedMedia(embeds, uploader, downloadedImagePaths) {
+    const rendered = [];
+    const renderedUrls = new Set();
+    for (const embed of embeds || []) {
+        const assets = [embed.image, embed.video, embed.thumbnail].filter(asset => asset && asset.url);
+        const asset = assets.find(candidate => getEmbedAssetType(candidate) === "image" && /\.gif$/i.test(getUrlPath(candidate.url)))
+            || assets.find(candidate => getEmbedAssetType(candidate) === "video")
+            || assets.find(candidate => getEmbedAssetType(candidate) === "image");
+        if (!asset) continue;
+
+        const assetType = getEmbedAssetType(asset);
+        const assetPath = getUrlPath(asset.url);
+        if (assetType === "image" && downloadedImagePaths.has(assetPath)) continue;
+        if (renderedUrls.has(asset.url)) continue;
+
+        const candidates = Array.from(new Set([asset.url, asset.proxyURL].filter(Boolean)));
+        let lastError;
+        let renderedAsset = false;
+        for (const url of candidates) {
+            try {
+                const local = await uploader.downloadAttachment(
+                    url,
+                    undefined,
+                    getEmbedAssetMimeType(asset)
+                );
+                const safeUrl = escapeHtml(local);
+                if (assetType === "video") {
+                    rendered.push(`<video style="width:300px;max-width:100%;" controls preload="metadata"><source src="${safeUrl}"></video>`);
                 } else {
-                    if (attachments.length > 0) {
-                        attachments.forEach((attachment) => {
-                            database.addTicketMessage(
-                                message.channel.topic, // ticketId
-                                attachment.file, // content of message
-                                message.author.username, // username of user
-                                message.author.avatarURL(), // avatar url of user
-                                date, // date of message creation
-                                m.displayHexColor, // hex color of user
-                                message.createdAt, // date of message creation in MS
-                                attachment.type, // type of message (text or image)
-                                "false" // if message has been edited
-                            ).catch(e => console.error(e));
-                        });
-                    } else {
-                        // transform content: replace custom emojis, inline image links and unicode emojis with local images
-                        try {
-                            let transformed = message.content;
-                            transformed = replaceCustomEmojis(transformed, uploader);
-                            transformed = replaceImageLinks(transformed, uploader);
-                            transformed = replaceUnicodeEmojis(transformed, uploader);
-
-                            database.addTicketMessage(
-                                message.channel.topic, // ticketId
-                                transformed, // content of message (may contain <img> tags)
-                                message.author.username, // username of user
-                                message.author.avatarURL(), // avatar url of user
-                                date, // date of message creation
-                                m.displayHexColor, // hex color of user
-                                message.createdAt, // date of message creation in MS
-                                type, // type of message (text or image)
-                                "false" // if message has been edited
-                            ).catch(e => console.error(e));
-                        } catch (e) {
-                            console.error(e);
-                        }
-                    }
+                    rendered.push(`<img src="${safeUrl}" style="width:300px;max-width:100%;"/>`);
+                    downloadedImagePaths.add(getUrlPath(url));
                 }
-            }).catch(e => console.error(e));
+                renderedUrls.add(asset.url);
+                renderedAsset = true;
+                break;
+            } catch (error) {
+                lastError = error;
+            }
+        }
+
+        if (!renderedAsset && lastError) {
+            console.warn("Failed to download media from Discord embed", asset.url, lastError);
+        }
+    }
+    return rendered.join("<br/>");
+}
+
+function getEmbedAssetType(asset) {
+    const contentType = (asset.contentType || "").split(";")[0].toLowerCase();
+    if (contentType.startsWith("image/")) return "image";
+    if (contentType.startsWith("video/")) return "video";
+
+    const pathname = getUrlPath(asset.url);
+    if (/\.(?:png|jpe?g|webp|avif|gif|svg|bmp)$/i.test(pathname)) return "image";
+    if (/\.(?:mp4|webm|mov|mkv|ogv)$/i.test(pathname)) return "video";
+    return null;
+}
+
+function getEmbedAssetMimeType(asset) {
+    const contentType = (asset.contentType || "").split(";")[0].toLowerCase();
+    if (contentType) return contentType;
+
+    const extension = /\.([a-z0-9]+)$/i.exec(getUrlPath(asset.url));
+    if (!extension) return "";
+    const mimeTypes = {
+        avif: "image/avif",
+        bmp: "image/bmp",
+        gif: "image/gif",
+        jpeg: "image/jpeg",
+        jpg: "image/jpeg",
+        mkv: "video/x-matroska",
+        mp4: "video/mp4",
+        mov: "video/quicktime",
+        ogv: "video/ogg",
+        png: "image/png",
+        svg: "image/svg+xml",
+        webm: "video/webm",
+        webp: "image/webp"
+    };
+    return mimeTypes[extension[1].toLowerCase()] || "";
+}
+
+function getUrlPath(url) {
+    try {
+        return new URL(url).pathname;
+    } catch (error) {
+        return "";
     }
 }
 
@@ -895,13 +974,13 @@ function uuid() {
     return uuid;
 }
 
-function replaceCustomEmojis(content, uploader) {
-    return content.replace(/<(a?):([^:>]+):(\d+)>/g, (match, animatedFlag, name, id) => {
+async function replaceCustomEmojis(content, uploader) {
+    return replaceAsync(content, /<(a?):([^:>]+):(\d+)>/g, async (match, animatedFlag, name, id) => {
         try {
             const isAnimated = animatedFlag === 'a';
             const ext = isAnimated ? 'gif' : 'png';
             const url = `https://cdn.discordapp.com/emojis/${id}.${ext}`;
-            const local = uploader.downloadAttachment(url);
+            const local = await uploader.downloadAttachment(url, `emoji.${ext}`);
             return `<img src="${local}" alt=":${name}:" style="width:20px;height:20px;vertical-align:middle;"/>`;
         } catch (e) {
             console.error("Failed to replace custom emoji", e);
@@ -910,32 +989,86 @@ function replaceCustomEmojis(content, uploader) {
     });
 }
 
-function replaceImageLinks(content, uploader) {
-    return content.replace(/(https?:\/\/\S+\.(?:png|jpe?g|webp|avif|gif|svg))/gi, (match) => {
+async function replaceImageLinks(content, uploader, downloadedImagePaths = new Set()) {
+    return replaceAsync(content, /https?:\/\/[^\s<>"']+/gi, async match => {
+        const { url, suffix } = splitTrailingUrlPunctuation(match);
+        let parsedUrl;
         try {
-            const local = uploader.downloadAttachment(match);
-            return `<img src="${local}" style="width:300px;"/>`;
+            parsedUrl = new URL(url);
         } catch (e) {
-            console.error("Failed to download image link", e);
             return match;
+        }
+
+        if (!/\.(?:png|jpe?g|webp|avif|gif|svg)$/i.test(parsedUrl.pathname)) {
+            return match;
+        }
+
+        try {
+            const local = await uploader.downloadAttachment(url);
+            downloadedImagePaths.add(parsedUrl.pathname);
+            return `<img src="${local}" style="width:300px;"/>${suffix}`;
+        } catch (e) {
+            const notFound = e.message && e.message.includes("HTTP status 404");
+            if (notFound) {
+                console.warn("Linked image is unavailable (HTTP 404); preserving it as a transcript link", url);
+            } else {
+                console.error("Failed to download image link", url, e);
+            }
+            const label = notFound ? "Image unavailable (404)" : url;
+            return `<a class="image-link-fallback" href="${escapeHtml(url)}">${escapeHtml(label)}</a>${suffix}`;
         }
     });
 }
 
-function replaceUnicodeEmojis(content, uploader) {
+function splitTrailingUrlPunctuation(value) {
+    let end = value.length;
+    while (end > 0 && /[.,!?;:]/.test(value[end - 1])) end--;
+
+    const openingParentheses = (value.slice(0, end).match(/\(/g) || []).length;
+    let closingParentheses = (value.slice(0, end).match(/\)/g) || []).length;
+    while (end > 0 && value[end - 1] === ")" && closingParentheses > openingParentheses) {
+        end--;
+        closingParentheses--;
+    }
+
+    return { url: value.slice(0, end), suffix: value.slice(end) };
+}
+
+function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, character => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+    })[character]);
+}
+
+async function replaceUnicodeEmojis(content, uploader) {
     // replace each Extended Pictographic character (emoji) with twemoji pngs
-    return content.replace(/\p{Extended_Pictographic}/gu, (match) => {
+    return replaceAsync(content, /\p{Extended_Pictographic}/gu, async (match) => {
         try {
             // build codepoint sequence for the matched grapheme
             const codepoints = Array.from(match).map(c => c.codePointAt(0).toString(16)).join('-');
             const url = `https://twemoji.maxcdn.com/v/latest/72x72/${codepoints}.png`;
-            const local = uploader.downloadAttachment(url);
+            const local = await uploader.downloadAttachment(url, "emoji.png");
             return `<img src="${local}" alt="${match}" style="width:20px;height:20px;vertical-align:middle;"/>`;
         } catch (e) {
             console.error("Failed to replace unicode emoji", e);
             return match;
         }
     });
+}
+
+async function replaceAsync(content, regex, replacer) {
+    const matches = Array.from(content.matchAll(regex));
+    const replacements = await Promise.all(matches.map(match => replacer(...match)));
+    let result = content;
+    for (let i = matches.length - 1; i >= 0; i--) {
+        const match = matches[i];
+        result = result.slice(0, match.index) + replacements[i] + result.slice(match.index + match[0].length);
+    }
+    return result;
 }
 
 module.exports = {

@@ -143,7 +143,7 @@ class SQL {
                     { name: "ticketsCategoryId", type: "TEXT" },
                     { name: "ticketsPrefix", type: "TEXT" }
                 ]);
-                await this._run("CREATE TABLE IF NOT EXISTS ticketMessages (ticketId TEXT, content TEXT, username TEXT, authorProfile TEXT, currentTime TEXT, color TEXT, orderDate TEXT, messageType TEXT, edited TEXT)");
+                await this._run("CREATE TABLE IF NOT EXISTS ticketMessages (ticketId TEXT, content TEXT, username TEXT, authorProfile TEXT, currentTime TEXT, color TEXT, orderDate TEXT, messageType TEXT, edited TEXT, messageId TEXT)");
                 await this._ensureColumns("ticketMessages", [
                     { name: "ticketId", type: "TEXT" },
                     { name: "content", type: "TEXT" },
@@ -153,7 +153,8 @@ class SQL {
                     { name: "color", type: "TEXT" },
                     { name: "orderDate", type: "TEXT" },
                     { name: "messageType", type: "TEXT" },
-                    { name: "edited", type: "TEXT" }
+                    { name: "edited", type: "TEXT" },
+                    { name: "messageId", type: "TEXT" }
                 ]);
                 // other tables
                 await this._run("CREATE TABLE IF NOT EXISTS nicknames (guildId TEXT, nickname TEXT)");
@@ -429,23 +430,53 @@ class SQL {
         })
     }
 
-    updateTicketMessage(ticketId, content, newContent) {
+    updateTicketMessage(ticketId, messageId, oldContent, newContent) {
         console.log("<DATABASE> updateTicketMessage call");
+        const db = this.db;
         return new Promise((resolve, reject) => {
-            this.db.run("UPDATE ticketMessages SET content = ?, edited = 'true' WHERE content = ? AND ticketId = ?", [newContent, content, ticketId], (err, row) => {
-                if (err) reject(err);
-                resolve();
-            });
+            db.run(
+                "UPDATE ticketMessages SET content = ?, edited = 'true' WHERE ticketId = ? AND messageId = ? AND messageType = 'text'",
+                [newContent, ticketId, messageId],
+                function (err) {
+                    if (err) {
+                        reject(err);
+                        return;
+                    }
+                    if (this.changes > 0 || !oldContent) {
+                        resolve(this.changes > 0);
+                        return;
+                    }
+
+                    db.run(
+                        "UPDATE ticketMessages SET content = ?, edited = 'true' WHERE ticketId = ? AND content = ? AND messageType = 'text' AND (messageId IS NULL OR messageId = '')",
+                        [newContent, ticketId, oldContent],
+                        function (fallbackError) {
+                            if (fallbackError) {
+                                reject(fallbackError);
+                                return;
+                            }
+                            resolve(this.changes > 0);
+                        }
+                    );
+                }
+            );
         });
     }
 
-    addTicketMessage(ticketId, content, username, authorProfile, currentTime, color, orderDate, messageType, edited) {
+    addTicketMessage(ticketId, content, username, authorProfile, currentTime, color, orderDate, messageType, edited, messageId = null) {
         console.log("<DATABASE> addTicketMessage call");
         return new Promise((resolve, reject) => {
-            this.db.run("INSERT INTO ticketMessages (ticketId, content, username, authorProfile, currentTime, color, orderDate, messageType, edited) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", [ticketId, content, username, authorProfile, currentTime, color, orderDate, messageType, edited], (err, row) => {
-                if (err) reject(err);
-                resolve();
-            });
+            this.db.run(
+                "INSERT INTO ticketMessages (ticketId, content, username, authorProfile, currentTime, color, orderDate, messageType, edited, messageId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                [ticketId, content, username, authorProfile, currentTime, color, orderDate, messageType, edited, messageId],
+                (err) => {
+                    if (err) {
+                        reject(err);
+                        return;
+                    }
+                    resolve();
+                }
+            );
         });
     }
 

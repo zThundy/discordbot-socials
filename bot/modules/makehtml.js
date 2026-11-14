@@ -62,6 +62,17 @@ class MakeHTML {
                     </div>
                 </div>
             `
+        } else if (message.messageType === "attachment") {
+            messageTemplate = `
+            <div class="messages">
+                <div class="message-container">
+                    <div class="message-author-icon"><img src="{authorProfilePicture}" /></div>
+                    <div class="message-content-container">
+                        <div class="message-author"><span class="message-author-name" style="color: {roleColor}">{messageAuthor}</span> <span class="message-author-date">{messageDate}</span></div>
+                        <div class="message-content">{messageContent}</div>
+                    </div>
+                </div>
+            `
         }
 
         messageTemplate = messageTemplate.replace("{authorProfilePicture}", message.authorProfile);
@@ -69,11 +80,74 @@ class MakeHTML {
         messageTemplate = messageTemplate.replace("{messageAuthor}", message.username);
         if (message.edited === "true") message.currentTime += " (EDITED)";
         messageTemplate = messageTemplate.replace("{messageDate}", message.currentTime);
-        messageTemplate = messageTemplate.replace("{messageContent}", message.content);
+        messageTemplate = messageTemplate.replace("{messageContent}", message.messageType === "attachment"
+            ? this._renderAttachment(message.content)
+            : message.content);
 
         var top = this.html.split(`<div class="messages">`)[0];
         var bottom = this.html.split(`<div class="messages">`)[1];
         this.html = top + messageTemplate + bottom;
+    }
+
+    _renderAttachment(content) {
+        let attachment;
+        try {
+            attachment = JSON.parse(content);
+        } catch (error) {
+            attachment = { url: content, name: "Attachment" };
+        }
+
+        if (!attachment || typeof attachment !== "object") {
+            attachment = { url: "", name: "Attachment" };
+        }
+        const rawUrl = String(attachment.url || "");
+        const url = this._escapeAttribute(/^https?:\/\//i.test(rawUrl) ? rawUrl : "");
+        const name = this._escapeHtml(attachment.name || "Attachment");
+        const contentType = (attachment.contentType || "").split(";")[0].toLowerCase();
+        const extension = (attachment.name || "").split(".").pop().toLowerCase();
+        const image = contentType.startsWith("image/") || ["png", "jpg", "jpeg", "gif", "webp", "avif", "svg", "bmp"].includes(extension);
+        const video = contentType.startsWith("video/") || ["mp4", "webm", "mov", "mkv", "ogv"].includes(extension);
+        const audio = contentType.startsWith("audio/") || ["mp3", "wav", "m4a", "ogg", "aac", "flac", "opus"].includes(extension);
+        const size = Number(attachment.size);
+        const sizeLabel = Number.isFinite(size) && size > 0 ? ` <span class="attachment-size">(${this._formatSize(size)})</span>` : "";
+        let preview = "";
+
+        if (image) {
+            preview = `<img class="attachment-preview" src="${url}" alt="${this._escapeAttribute(attachment.name || "Image")}" />`;
+        } else if (video) {
+            const type = contentType ? ` type="${this._escapeAttribute(contentType)}"` : "";
+            preview = `<video class="attachment-preview" controls preload="metadata"><source src="${url}"${type}></video>`;
+        } else if (audio) {
+            const type = contentType ? ` type="${this._escapeAttribute(contentType)}"` : "";
+            preview = `<audio controls preload="metadata"><source src="${url}"${type}></audio>`;
+        }
+
+        return `<div class="attachment">${preview}<a href="${url}" download="${this._escapeAttribute(attachment.name || "attachment")}">${name}</a>${sizeLabel}</div>`;
+    }
+
+    _formatSize(size) {
+        const units = ["B", "KB", "MB", "GB"];
+        let value = size;
+        let unit = 0;
+        while (value >= 1024 && unit < units.length - 1) {
+            value /= 1024;
+            unit++;
+        }
+        return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
+    }
+
+    _escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, character => ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;"
+        })[character]);
+    }
+
+    _escapeAttribute(value) {
+        return this._escapeHtml(value);
     }
 
     writeHtmlFile(messages, ticket) {

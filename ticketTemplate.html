@@ -1,183 +1,313 @@
 <html>
     <head>
-        <title>{channelName}</title>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Ticket transcript</title>
+        <style>
+            :root {
+                color-scheme: dark;
+                font-family: "gg sans", "Noto Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+                background: #313338;
+                color: #dbdee1;
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+
+            html,
+            body {
+                width: 100%;
+                height: 100%;
+                height: 100dvh;
+                margin: 0;
+            }
+
+            body {
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+            }
+
+            .header {
+                z-index: 1;
+                display: flex;
+                flex: 0 0 auto;
+                align-items: center;
+                gap: 12px;
+                min-height: 60px;
+                padding: 10px 20px;
+                background: #313338;
+                border-bottom: 1px solid #26272d;
+                box-shadow: 0 1px 3px #1e1f2266;
+            }
+
+            .header-mark {
+                display: grid;
+                flex: 0 0 36px;
+                width: 36px;
+                height: 36px;
+                place-items: center;
+                overflow: hidden;
+                border-radius: 50%;
+                background: #232428;
+            }
+
+            .header-mark img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+            }
+
+            .header-copy {
+                min-width: 0;
+            }
+
+            .channel-name {
+                overflow: hidden;
+                color: #f2f3f5;
+                font-size: 16px;
+                font-weight: 700;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .channel-name span {
+                margin-right: 7px;
+                color: #80848e;
+                font-size: 20px;
+                font-weight: 500;
+            }
+
+            .header-topic {
+                overflow: hidden;
+                margin-top: 2px;
+                color: #949ba4;
+                font-size: 12px;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .header-topic strong {
+                color: #b5bac1;
+                font-weight: 600;
+            }
+
+            .transcript-tag {
+                flex: 0 0 auto;
+                margin-left: auto;
+                padding: 4px 8px;
+                border: 1px solid #3f4147;
+                border-radius: 4px;
+                color: #b5bac1;
+                font-size: 10px;
+                font-weight: 700;
+                letter-spacing: 0.06em;
+            }
+
+            body > .messages {
+                flex: 1 1 auto;
+                min-height: 0;
+                overflow-x: hidden;
+                overflow-y: auto;
+                overscroll-behavior: contain;
+                scrollbar-color: #1a1b1e #2b2d31;
+                scrollbar-width: thin;
+            }
+
+            .messages > .messages {
+                padding: 2px 0;
+            }
+
+            .message-container {
+                display: flex;
+                gap: 16px;
+                margin: 0;
+                padding: 2px 24px;
+                border-radius: 0;
+                transition: background-color 0.12s ease;
+            }
+
+            .message-container:hover {
+                background: #2e3035;
+            }
+
+            .message-author-icon {
+                flex: 0 0 40px;
+                width: 40px;
+                margin: 2px 0 0;
+            }
+
+            .message-author-icon img {
+                display: block;
+                width: 40px;
+                height: 40px;
+                border-radius: 50%;
+                object-fit: cover;
+            }
+
+            .message-content-container {
+                min-width: 0;
+                flex: 1 1 auto;
+            }
+
+            .message-author {
+                display: flex;
+                min-height: 22px;
+                flex-wrap: wrap;
+                align-items: baseline;
+                gap: 0 8px;
+                margin: 0;
+                font-size: 16px;
+                font-weight: 600;
+                line-height: 22px;
+            }
+
+            .message-author-name:hover {
+                text-decoration: underline;
+                cursor: default;
+            }
+
+            .message-author-date {
+                color: #949ba4;
+                font-size: 12px;
+                font-weight: 400;
+            }
+
+            .message-content {
+                width: auto;
+                margin: 2px 0 4px;
+                color: #dbdee1;
+                font-size: 15px;
+                line-height: 1.375;
+                overflow-wrap: anywhere;
+                white-space: pre-wrap;
+            }
+
+            .message-content img {
+                max-width: 100%;
+                border-radius: 3px;
+                vertical-align: middle;
+            }
+
+            .message-content a {
+                color: #00a8fc;
+                overflow-wrap: anywhere;
+                text-decoration: none;
+            }
+
+            .message-content a:hover {
+                text-decoration: underline;
+            }
+
+            .attachment {
+                display: flex;
+                width: fit-content;
+                max-width: 100%;
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+                margin-top: 8px;
+                padding: 12px;
+                border: 1px solid #3f4147;
+                border-radius: 8px;
+                background: #2b2d31;
+            }
+
+            .attachment a {
+                color: #00a8fc;
+                font-size: 14px;
+                overflow-wrap: anywhere;
+                text-decoration: none;
+            }
+
+            .attachment a:hover {
+                text-decoration: underline;
+            }
+
+            .attachment-preview {
+                max-width: min(600px, 100%);
+                max-height: 480px;
+                border-radius: 4px;
+                object-fit: contain;
+            }
+
+            .attachment audio {
+                width: min(400px, 100%);
+                max-width: 100%;
+            }
+
+            .attachment-size {
+                color: #949ba4;
+                font-size: 12px;
+            }
+
+            .footer {
+                display: flex;
+                flex: 0 0 auto;
+                justify-content: center;
+                padding: 10px 16px;
+                border-top: 1px solid #26272d;
+                background: #2b2d31;
+                color: #949ba4;
+                font-size: 12px;
+            }
+
+            .footer a {
+                color: #00a8fc;
+                text-decoration: none;
+            }
+
+            .footer a:hover {
+                text-decoration: underline;
+            }
+
+            @media (max-width: 600px) {
+                .header {
+                    gap: 10px;
+                    padding: 10px 14px;
+                }
+
+                .transcript-tag {
+                    display: none;
+                }
+
+                .message-container {
+                    gap: 12px;
+                    padding-right: 14px;
+                    padding-left: 14px;
+                }
+
+                .message-author-icon,
+                .message-author-icon img {
+                    flex-basis: 36px;
+                    width: 36px;
+                    height: 36px;
+                }
+
+                .message-content {
+                    font-size: 14px;
+                }
+            }
+        </style>
     </head>
 
     <body>
-        <div class="header" id="myHeader">
-            <img src="{botProfilePicture}" />
-            <div>
-                <h1>Title: {ticketTitle}</h1>
-                <h2>Description: {ticketDescription}</h2>
+        <header class="header" id="myHeader">
+            <div class="header-mark">
+                <img src="{botProfilePicture}" alt="" />
             </div>
-        </div>
+            <div class="header-copy">
+                <div class="channel-name"><span>#</span>{channelName}</div>
+                <div class="header-topic"><strong>{ticketTitle}</strong> — {ticketDescription}</div>
+            </div>
+            <span class="transcript-tag">TICKET TRANSCRIPT</span>
+        </header>
 
-        <div class="messages">
-        </div>
+        <div class="messages"></div>
 
-        <div class="footer">
-            <span>Made with ❤️ by <a href="https://github.com/zThundy"><b>zThundy__</b></a></span>
-        </div>
+        <footer class="footer">
+            <span>Ticket transcript · Made with ❤️ by <a href="https://github.com/zThundy"><b>zThundy__</b></a></span>
+        </footer>
     </body>
-
-    <style>
-        html, body {
-            font-family: sans-serif;
-            background-color: rgb(49, 51, 56);
-            margin: 0;
-            height: 100vh;
-            width: 100vw;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .footer {
-            padding: 10px 16px;
-            background: rgb(30, 31, 34);
-            border-top: 2px solid white;
-            /* add white shadow on bottom of container */
-            box-shadow: 0 4px 8px 0 rgba(255, 255, 255, 0.8);
-            color: #f1f1f1;
-            display: flex;
-            flex-direction: row;
-        }
-
-        .footer a {
-            color: rgb(0, 163, 54);
-            text-decoration: none;
-            transition: all .1s ease-in-out;
-        }
-
-        .footer a:hover {
-            color: rgb(0, 122, 41);
-            transition: all .1s ease-in-out;
-        }
-        
-        .header {
-            padding: 10px 16px;
-            background: rgb(30, 31, 34);
-            border-bottom: 2px solid white;
-            /* add white shadow on bottom of container */
-            box-shadow: 0 4px 8px 0 rgba(255, 255, 255, 0.8);
-            color: #f1f1f1;
-            display: flex;
-            flex-direction: row;
-        }
-
-        .header img {
-            margin: 0rem 1rem 0rem 0rem;
-            width: 8rem;
-            height: 8rem;
-            border-radius: 20rem;
-            border: 5px solid white;
-        }
-
-        .sticky {
-            position: fixed;
-            top: 0;
-            width: 100%
-        }
-
-        .messages {
-            position: relative;
-            height: 100%;
-            overflow-y: scroll;
-        }
-
-        .message-container {
-            margin: 15px;
-            display: flex;
-            flex-direction: row;
-            border-radius: 30px;
-            transition: all .1s ease-in-out;
-        }
-
-        .message-container:hover {
-            background-color: #2a2b30;
-            transition: all .1s ease-in-out;
-        }
-
-        .message-author-icon {
-            margin-top: 35px;
-            margin-bottom: 25px;
-            margin-left: 25px;
-            margin-right: 15px;
-            width: 80px;
-            transition: all .1s ease-in-out;
-        }
-
-        .message-author-icon:hover {
-            cursor: pointer;
-            transition: all .1s ease-in-out;
-        }
-
-        .message-author-icon img {
-            position: relative;
-            width: 70px;
-            border-radius: 50%;
-            box-sizing: border-box;
-            border: 0px solid white;
-            transition: all .1s ease-in-out;
-        }
-
-        .message-author-icon img:hover {
-            /* add border inside of img */
-            box-sizing: border-box;
-            border: 4px solid white;
-            transition: all .1s ease-in-out;
-        }
-
-        .message-author {
-            margin-top: 25px;
-            margin-left: 25px;
-            font-weight: bold;
-        }
-
-        .message-author .message-author-name:hover {
-            text-decoration: underline;
-            cursor: pointer;
-            /* font-weight: bold; */
-            /* background-color: rgba(255, 255, 255, 0.1); */
-        }
-
-        .message-author-date {
-            color: #585b63;
-            cursor: pointer;
-            font-size: 0.8em;
-            margin-left: 15px;
-        }
-
-        .message-content {
-            color: white;
-            margin-top: 10px;
-            margin-bottom: 25px;
-            margin-left: 25px;
-            width: 98%;
-        }
-
-        .message-content img {
-            border-radius: 1rem;
-        }
-    </style>
-
-    <script>
-        // When the user scrolls the page, execute myFunction
-        window.onscroll = function() { scrollCheck() };
-
-        // Get the header
-        var header = document.getElementById("myHeader");
-
-        // Get the offset position of the navbar
-        var sticky = header.offsetTop;
-
-        // Add the sticky class to the header when you reach its scroll position. Remove "sticky" when you leave the scroll position
-        function scrollCheck() {
-            if (window.pageYOffset > sticky) {
-                header.classList.add("sticky");
-            } else {
-                header.classList.remove("sticky");
-            }
-        }
-    </script>
 </html>

@@ -12,6 +12,7 @@
         "folder": "./bot/data/attachments",
         "httpIp": "localhost",
         "deleteFiles": true,
+        "deleteFilesAfterDays": 30,
         "httpPort": 52320
     },
     "twitter": {
