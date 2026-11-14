@@ -164,7 +164,7 @@ class TwitchApi {
     }
 
     _downloadPic(url, name) {
-        const picPath = path.resolve("./", "bot", "images", `${name}.png`);
+        const picPath = path.resolve("./", "bot", "data", "images", `${name}.png`);
         return downloadFile(url, picPath);
     }
 
@@ -236,7 +236,7 @@ class TwitchApi {
                 .catch((err) => {
                     console.error(err);
                     // resolve cached picture
-                    const localPic = path.resolve("./", "bot", "images", `${stream.user_name}.png`)
+                    const localPic = path.resolve("./", "bot", "data", "images", `${stream.user_name}.png`)
                     const pic = new AttachmentBuilder(localPic)
                         .setName(`${stream.user_name}.png`);
 

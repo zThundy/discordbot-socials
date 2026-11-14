@@ -92,6 +92,8 @@ class BOT {
         if (!fs.existsSync(this.config.tickets.folder)) fs.mkdirSync(this.config.tickets.folder);
         // hard coded cause i'm not bothered enough to make it configurable
         if (!fs.existsSync(path.resolve("./", "bot", "images"))) fs.mkdirSync(path.resolve("./", "bot", "images"));
+        // bot generated images path
+        if (!fs.existsSync(path.resolve("./", "bot", "data", "images"))) fs.mkdirSync(path.resolve("./", "bot", "data", "images"));
     }
 
     _buildCommands() {
