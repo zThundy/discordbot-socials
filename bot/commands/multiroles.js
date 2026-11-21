@@ -2,7 +2,7 @@ const { SlashCommandBuilder, PermissionsBitField, MessageFlags } = require("disc
 const { SelectMenu } = require("./elements/dropdown.js");
 const { Button } = require("./elements/button.js");
 const { Modal } = require("./elements/modal.js");
-const { RoleSelect } = require("./elements/roleSelect.js");
+const { RoleSelect } = require("./elements/roleselect.js");
 const { Timeout } = require("../modules/timeout.js");
 const timeout = new Timeout();
 

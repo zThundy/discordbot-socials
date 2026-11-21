@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, PermissionsBitField, ActionRowBuilder, ChannelType, EmbedBuilder, MessageFlags } = require("discord.js");
 const { Modal } = require("./elements/modal.js");
 const { Button } = require("./elements/button.js");
-const { RoleSelect } = require("./elements/roleSelect.js");
+const { RoleSelect } = require("./elements/roleselect.js");
 const { ChannelSelect } = require("./elements/channelSelect.js");
 const { MakeHTML } = require("../modules/makehtml.js");
 const { Timeout } = require("../modules/timeout.js");

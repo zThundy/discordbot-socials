@@ -47,6 +47,14 @@ async function execute(interaction, _, _, config) {
                 value: "Use this command to setup the verification system for the server."
             },
             {
+                name: "📜 Honeypot (/kickchannel)",
+                value: "You can use this command in a channel to configure the 'Honeypot'. Every user that sends a message in that channel, will be kicked from the server and all messages deleted.",
+            },
+            {
+                name: "📜 Sync servers (/syncserver)",
+                value: "You can use this command to configure a sync between multiple discord servers. This configuration will sync roles between servers so that users will have same roles in different servers.",
+            },
+            {
                 name : "📜 Info (/info)",
                 value: "Use this command to get information about the bot."
             },
