@@ -176,6 +176,8 @@ class SQL {
                     { name: "guildId", type: "TEXT" },
                     { name: "roleId", type: "TEXT" }
                 ]);
+                await this._run("CREATE TABLE IF NOT EXISTS kickChannelConfig (guildId TEXT PRIMARY KEY, channelId TEXT NOT NULL, messageId TEXT NOT NULL, description TEXT NOT NULL)");
+                await this._run("CREATE TABLE IF NOT EXISTS kickChannelKicks (id INTEGER PRIMARY KEY AUTOINCREMENT, guildId TEXT NOT NULL, userId TEXT NOT NULL, kickedAt INTEGER NOT NULL)");
                 resolve();
             } catch (err) {
                 console.error(err);
@@ -1009,6 +1011,72 @@ class SQL {
     deleteVerify(guildId) {
         console.log("<DATABASE> deleteVerify call");
         this.db.run("DELETE FROM verify WHERE guildId = ?", [guildId]);
+    }
+
+    getKickChannel(guildId) {
+        return new Promise((resolve, reject) => {
+            this.db.get("SELECT * FROM kickChannelConfig WHERE guildId = ?", [guildId], (err, row) => {
+                if (err) return reject(err);
+                resolve(row);
+            });
+        });
+    }
+
+    saveKickChannel(guildId, channelId, messageId, description) {
+        return new Promise((resolve, reject) => {
+            this.db.run(
+                "INSERT OR REPLACE INTO kickChannelConfig (guildId, channelId, messageId, description) VALUES (?, ?, ?, ?)",
+                [guildId, channelId, messageId, description],
+                (err) => {
+                    if (err) return reject(err);
+                    resolve();
+                }
+            );
+        });
+    }
+
+    deleteKickChannel(guildId) {
+        return new Promise((resolve, reject) => {
+            this.db.run("DELETE FROM kickChannelConfig WHERE guildId = ?", [guildId], (err) => {
+                if (err) return reject(err);
+                resolve();
+            });
+        });
+    }
+
+    addKickChannelKick(guildId, userId, kickedAt) {
+        return new Promise((resolve, reject) => {
+            this.db.run(
+                "INSERT INTO kickChannelKicks (guildId, userId, kickedAt) VALUES (?, ?, ?)",
+                [guildId, userId, kickedAt],
+                (err) => {
+                    if (err) return reject(err);
+                    resolve();
+                }
+            );
+        });
+    }
+
+    getKickChannelKickCount(guildId) {
+        return new Promise((resolve, reject) => {
+            this.db.get("SELECT COUNT(*) AS count FROM kickChannelKicks WHERE guildId = ?", [guildId], (err, row) => {
+                if (err) return reject(err);
+                resolve(row.count);
+            });
+        });
+    }
+
+    getKickChannelKicks(guildId, limit, offset) {
+        return new Promise((resolve, reject) => {
+            this.db.all(
+                "SELECT userId, kickedAt FROM kickChannelKicks WHERE guildId = ? ORDER BY id DESC LIMIT ? OFFSET ?",
+                [guildId, limit, offset],
+                (err, rows) => {
+                    if (err) return reject(err);
+                    resolve(rows);
+                }
+            );
+        });
     }
 
     /**
