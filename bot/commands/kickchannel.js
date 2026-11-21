@@ -132,6 +132,34 @@ function buildPanelButton(guildId, count) {
     return new ActionRowBuilder().addComponents(button);
 }
 
+function init(database, extra) {
+    const guild = extra.guild;
+    extra.cron.add(30 * 60 * 1000, async () => {
+        try {
+            const config = await database.getKickChannel(guild.id);
+            if (!config) return;
+
+            const channel = await guild.channels.fetch(config.channelId);
+            if (!channel || !channel.isTextBased() || !channel.messages) {
+                console.warn(`Kick-channel panel channel ${config.channelId} is unavailable in guild ${guild.id}.`);
+                return;
+            }
+
+            const panel = await channel.messages.fetch(config.messageId);
+            const count = await database.getKickChannelKickCount(guild.id);
+            const countLabel = `Kicks: ${count}`;
+            const countButton = panel.components
+                .reduce((buttons, row) => buttons.concat(row.components), [])
+                .find((button) => button.customId === `kickchannel;${internalId};list;${guild.id};0`);
+
+            if (countButton && countButton.label === countLabel) return;
+            await panel.edit({ components: [buildPanelButton(guild.id, count)] });
+        } catch (error) {
+            console.error(`Could not refresh the kick-channel count for guild ${guild.id}:`, error);
+        }
+    });
+}
+
 function buildKickList(guildId, kicks, count, page) {
     const pageCount = Math.max(1, Math.ceil(count / pageSize));
     const lines = kicks.map((kick) => {
@@ -233,15 +261,6 @@ async function message(event, message, _newMessage, { database }) {
             );
         }
 
-        if (kicked) {
-            try {
-                const panel = await message.channel.messages.fetch(config.messageId);
-                const count = await database.getKickChannelKickCount(message.guild.id);
-                await panel.edit({ components: [buildPanelButton(message.guild.id, count)] });
-            } catch (error) {
-                console.error("Could not update the kick-channel count button:", error);
-            }
-        }
     } catch (error) {
         console.error(`Could not process a message in kick channel ${message.channel.id}:`, error);
     }
@@ -321,5 +340,6 @@ module.exports = {
     build,
     execute,
     interaction,
-    message
+    message,
+    init
 };
