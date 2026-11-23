@@ -3,7 +3,7 @@ const sqlite = require('sqlite3');
 class SQL {
     constructor() {
         this.db = null;
-        this.init();
+        this.ready = this.init();
         console.log("<DATABASE> Database loaded");
     }
 
@@ -183,6 +183,8 @@ class SQL {
                 await this._run("CREATE TABLE IF NOT EXISTS moderationLogConfig (guildId TEXT PRIMARY KEY, channelId TEXT NOT NULL)");
                 await this._run("CREATE TABLE IF NOT EXISTS moderationLogs (id INTEGER PRIMARY KEY AUTOINCREMENT, guildId TEXT NOT NULL, createdAt INTEGER NOT NULL, eventType TEXT NOT NULL, userId TEXT, channelId TEXT, payloadJson TEXT NOT NULL)");
                 await this._run("CREATE INDEX IF NOT EXISTS idx_moderationLogs_guild_created ON moderationLogs (guildId, createdAt DESC, id DESC)");
+                await this._run("CREATE TABLE IF NOT EXISTS capturedMessages (messageId TEXT PRIMARY KEY, guildId TEXT NOT NULL, channelId TEXT NOT NULL, channelName TEXT, userId TEXT NOT NULL, authorName TEXT NOT NULL, content TEXT NOT NULL, attachmentsJson TEXT NOT NULL, embedsJson TEXT NOT NULL, createdAt INTEGER NOT NULL, editedAt INTEGER, isBot INTEGER NOT NULL DEFAULT 0)");
+                await this._run("CREATE INDEX IF NOT EXISTS idx_capturedMessages_guild_created ON capturedMessages (guildId, createdAt DESC, messageId DESC)");
                 resolve();
             } catch (err) {
                 console.error(err);
@@ -1148,6 +1150,86 @@ class SQL {
             this.db.get(query, params, (err, row) => {
                 if (err) return reject(err);
                 resolve(row.count);
+            });
+        });
+    }
+
+    saveCapturedMessage(message) {
+        return new Promise((resolve, reject) => {
+            this.db.run(
+                `INSERT INTO capturedMessages
+                    (messageId, guildId, channelId, channelName, userId, authorName, content, attachmentsJson, embedsJson, createdAt, editedAt, isBot)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(messageId) DO UPDATE SET
+                    channelId = excluded.channelId,
+                    channelName = excluded.channelName,
+                    userId = excluded.userId,
+                    authorName = excluded.authorName,
+                    content = excluded.content,
+                    attachmentsJson = excluded.attachmentsJson,
+                    embedsJson = excluded.embedsJson,
+                    editedAt = COALESCE(excluded.editedAt, capturedMessages.editedAt)`,
+                [
+                    message.messageId,
+                    message.guildId,
+                    message.channelId,
+                    message.channelName,
+                    message.userId,
+                    message.authorName,
+                    message.content,
+                    JSON.stringify(message.attachments),
+                    JSON.stringify(message.embeds),
+                    message.createdAt,
+                    message.editedAt,
+                    message.isBot ? 1 : 0
+                ],
+                (error) => {
+                    if (error) return reject(error);
+                    resolve();
+                }
+            );
+        });
+    }
+
+    getCapturedMessages(guildId, { limit, offset, search }) {
+        return new Promise((resolve, reject) => {
+            const params = [guildId];
+            let query = "SELECT messageId, channelId, channelName, userId, authorName, content, attachmentsJson, embedsJson, createdAt, editedAt, isBot FROM capturedMessages WHERE guildId = ?";
+            if (search) {
+                query += " AND (content LIKE ? OR authorName LIKE ? OR channelName LIKE ?)";
+                const searchPattern = `%${search}%`;
+                params.push(searchPattern, searchPattern, searchPattern);
+            }
+            query += " ORDER BY createdAt DESC, messageId DESC LIMIT ? OFFSET ?";
+            params.push(limit, offset);
+            this.db.all(query, params, (error, rows) => {
+                if (error) return reject(error);
+                resolve(rows);
+            });
+        });
+    }
+
+    countCapturedMessages(guildId, search) {
+        return new Promise((resolve, reject) => {
+            const params = [guildId];
+            let query = "SELECT COUNT(*) AS count FROM capturedMessages WHERE guildId = ?";
+            if (search) {
+                query += " AND (content LIKE ? OR authorName LIKE ? OR channelName LIKE ?)";
+                const searchPattern = `%${search}%`;
+                params.push(searchPattern, searchPattern, searchPattern);
+            }
+            this.db.get(query, params, (error, row) => {
+                if (error) return reject(error);
+                resolve(row.count);
+            });
+        });
+    }
+
+    deleteExpiredCapturedMessages(cutoff) {
+        return new Promise((resolve, reject) => {
+            this.db.run("DELETE FROM capturedMessages WHERE createdAt < ?", [cutoff], function (error) {
+                if (error) return reject(error);
+                resolve(this.changes);
             });
         });
     }

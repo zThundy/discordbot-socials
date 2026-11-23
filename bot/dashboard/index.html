@@ -196,6 +196,8 @@
         td { color: #dce0eb; font-size: 12px; }
         tr:last-child td { border-bottom: 0; }
         .operation { min-width: 160px; font-weight: 700; }
+        .message-content { max-width: 720px; white-space: pre-wrap; overflow-wrap: anywhere; }
+        .message-attachment { margin-top: 6px; color: var(--muted); font-size: 11px; }
         .event-trigger { cursor: pointer; color: #d3c4ff; }
         .event-trigger:hover { text-decoration: underline; }
         .muted { margin-top: 4px; color: var(--muted); font-size: 11px; }
@@ -311,6 +313,9 @@
                 <button class="tab active" type="button" role="tab" aria-selected="true" data-tab="dashboard">
                     <span class="tab-symbol" aria-hidden="true">▦</span>Dashboard
                 </button>
+                <button class="tab" type="button" role="tab" aria-selected="false" data-tab="messages">
+                    <span class="tab-symbol" aria-hidden="true">▤</span>Messages
+                </button>
                 <button class="tab" type="button" role="tab" aria-selected="false" data-tab="attachments">
                     <span class="tab-symbol" aria-hidden="true">⌑</span>Ticket attachments
                 </button>
@@ -362,6 +367,35 @@
                 <button id="logs-previous" class="secondary-button" type="button">Previous</button>
                 <span id="logs-page">Page 1</span>
                 <button id="logs-next" class="secondary-button" type="button">Next</button>
+            </div>
+        </section>
+
+        <section id="messages-panel" class="panel" role="tabpanel" hidden>
+            <div class="section-heading">
+                <div>
+                    <h1>Messages</h1>
+                    <p id="messages-retention">Messages are retained for 730 days.</p>
+                </div>
+                <button id="messages-refresh" class="secondary-button" type="button">Refresh</button>
+            </div>
+            <div class="toolbar">
+                <label>Search messages
+                    <input id="messages-search" type="search" maxlength="200" placeholder="Message, author, channel">
+                </label>
+            </div>
+            <p id="messages-status" class="status" role="status">Choose a server to load messages.</p>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr><th>Date</th><th>Author</th><th>Channel</th><th>Message</th></tr>
+                    </thead>
+                    <tbody id="messages"></tbody>
+                </table>
+            </div>
+            <div class="pagination">
+                <button id="messages-previous" class="secondary-button" type="button">Previous</button>
+                <span id="messages-page">Page 1</span>
+                <button id="messages-next" class="secondary-button" type="button">Next</button>
             </div>
         </section>
 
@@ -426,8 +460,8 @@
         const searchInput = document.getElementById("search");
         const logBody = document.getElementById("logs");
         const detailScreen = document.getElementById("json-screen");
-        const pageState = { dashboard: 1, attachments: 1, tickets: 1 };
-        let totalPages = { dashboard: 1, attachments: 1, tickets: 1 };
+        const pageState = { dashboard: 1, messages: 1, attachments: 1, tickets: 1 };
+        let totalPages = { dashboard: 1, messages: 1, attachments: 1, tickets: 1 };
         let loadedLogs = [];
         let activeTab = "dashboard";
         let currentEventLog = null;
@@ -738,6 +772,65 @@
             }
         }
 
+        function renderMessages(messages) {
+            const body = document.getElementById("messages");
+            body.replaceChildren();
+            if (!messages.length) {
+                const row = document.createElement("tr");
+                const cell = appendCell(row, "No messages found.", "empty-cell");
+                cell.colSpan = 4;
+                body.appendChild(row);
+                return;
+            }
+            messages.forEach((message) => {
+                const row = document.createElement("tr");
+                appendCell(row, formatDate(message.createdAt));
+                appendCell(row, `${message.authorName || "Unknown"} (${message.userId || "unknown"})`);
+                appendCell(row, message.channelName
+                    ? `#${message.channelName} (${message.channelId})`
+                    : message.channelId);
+                const contentCell = appendCell(row, "", "message-content");
+                contentCell.replaceChildren();
+                const content = document.createElement("div");
+                content.textContent = message.content || (message.embeds.length ? "Embedded message" : "No text content");
+                contentCell.appendChild(content);
+                message.attachments.forEach((attachment) => {
+                    const item = document.createElement("div");
+                    item.className = "message-attachment";
+                    item.textContent = `Attachment: ${attachment.name || "file"}`;
+                    contentCell.appendChild(item);
+                });
+                message.embeds.forEach((embed) => {
+                    const title = embed.title || embed.description;
+                    if (!title) return;
+                    const item = document.createElement("div");
+                    item.className = "message-attachment";
+                    item.textContent = `Embed: ${title}`;
+                    contentCell.appendChild(item);
+                });
+                body.appendChild(row);
+            });
+        }
+
+        async function loadMessages() {
+            if (!guildSelect.value) return;
+            setStatus("messages-status", "Loading messages…");
+            const parameters = selectedGuildParameters();
+            parameters.set("search", document.getElementById("messages-search").value.trim());
+            try {
+                const data = await fetchJson(`/api/messages?${parameters}`);
+                renderMessages(data.messages);
+                updatePagination("messages", data, "messages");
+                document.getElementById("messages-retention").textContent =
+                    `Messages are retained for ${data.retentionDays} days. Configure messageArchive.retentionDays in config.json.`;
+                setStatus("messages-status", data.total
+                    ? `Showing ${data.messages.length} of ${data.total} messages.`
+                    : "No messages found.");
+            } catch (error) {
+                setStatus("messages-status", error.message, true);
+            }
+        }
+
         function formatBytes(value) {
             if (!Number.isFinite(value) || value < 0) return "Size unavailable";
             if (value < 1024) return `${value} B`;
@@ -914,6 +1007,7 @@
 
         function loadActiveTab() {
             if (activeTab === "dashboard") return loadLogs();
+            if (activeTab === "messages") return loadMessages();
             if (activeTab === "attachments") return loadAttachments();
             return loadTickets();
         }
@@ -957,6 +1051,7 @@
             serverMenu.hidden = true;
             document.getElementById("server-picker-button").setAttribute("aria-expanded", "false");
             pageState.dashboard = 1;
+            pageState.messages = 1;
             pageState.attachments = 1;
             pageState.tickets = 1;
             loadActiveTab();
@@ -1044,11 +1139,18 @@
         eventSelect.addEventListener("change", () => { pageState.dashboard = 1; loadLogs(); });
         searchInput.addEventListener("input", renderLogs);
         document.getElementById("refresh").addEventListener("click", loadLogs);
+        document.getElementById("messages-refresh").addEventListener("click", loadMessages);
+        document.getElementById("messages-search").addEventListener("change", () => {
+            pageState.messages = 1;
+            loadMessages();
+        });
         document.getElementById("attachments-refresh").addEventListener("click", loadAttachments);
         document.getElementById("tickets-refresh").addEventListener("click", loadTickets);
         [
             ["logs-previous", "dashboard", loadLogs, -1],
             ["logs-next", "dashboard", loadLogs, 1],
+            ["messages-previous", "messages", loadMessages, -1],
+            ["messages-next", "messages", loadMessages, 1],
             ["attachments-previous", "attachments", loadAttachments, -1],
             ["attachments-next", "attachments", loadAttachments, 1],
             ["tickets-previous", "tickets", loadTickets, -1],

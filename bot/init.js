@@ -15,9 +15,23 @@ const {
     logVoiceStateUpdate
 } = require("./modules/moderationLogs.js");
 
+const DEFAULT_MESSAGE_RETENTION_DAYS = 730;
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+function getMessageRetentionDays(config) {
+    const configuredDays = config.messageArchive && config.messageArchive.retentionDays;
+    if (configuredDays === undefined) return DEFAULT_MESSAGE_RETENTION_DAYS;
+    const maxDays = Math.floor(Number.MAX_SAFE_INTEGER / DAY_IN_MS);
+    if (!Number.isSafeInteger(configuredDays) || configuredDays < 1 || configuredDays > maxDays) {
+        throw new RangeError(`messageArchive.retentionDays must be an integer between 1 and ${maxDays}.`);
+    }
+    return configuredDays;
+}
+
 class BOT {
     constructor(client, guild, uploader, cron) {
         this.config = require("../config.json");
+        this.messageRetentionDays = getMessageRetentionDays(this.config);
         // init data folders
         this._initDataFolders();
         // require logger module
@@ -34,8 +48,56 @@ class BOT {
         if (this.config.twitch.enabled) this.twitch = new TwitchApi(this.config.twitch);
         if (this.config.twitter.enabled) this.twitter = new TwitterAPI(this.config.twitter, this.database);
         if (this.config.youtube.enabled) this.youtube = new YoutubeAPI(this.config.youtube);
-        // init database and commands
-        this.database.init().then(() => this._buildCommands()).catch(err => console.error(err));
+        this.databaseReady = this.database.ready.then(() => {
+            this._buildCommands();
+            this._startMessageRetention();
+            return true;
+        }).catch(error => {
+            console.error("Could not initialize the bot database:", error);
+            return false;
+        });
+    }
+
+    _startMessageRetention() {
+        if (this.cron.messageArchiveRetentionJob) return;
+        const database = this.database;
+        const retentionDays = this.messageRetentionDays;
+        this.cron.messageArchiveRetentionJob = this.cron.add(DAY_IN_MS, () => {
+            const cutoff = Date.now() - retentionDays * DAY_IN_MS;
+            database.deleteExpiredCapturedMessages(cutoff).catch(error => {
+                console.error("Could not remove expired archived messages:", error);
+            });
+        }, true);
+    }
+
+    _archiveMessage(message) {
+        if (!message || message.partial || !message.guildId || !message.author) return;
+        const record = {
+            messageId: message.id,
+            guildId: message.guildId,
+            channelId: message.channelId,
+            channelName: message.channel && message.channel.name || null,
+            userId: message.author.id,
+            authorName: message.member && message.member.displayName ||
+                message.author.globalName || message.author.username || message.author.tag || message.author.id,
+            content: message.content || "",
+            attachments: Array.from(message.attachments.values(), attachment => ({
+                name: attachment.name,
+                url: attachment.url,
+                contentType: attachment.contentType,
+                size: attachment.size
+            })),
+            embeds: message.embeds.map(embed => embed.toJSON()),
+            createdAt: message.createdTimestamp,
+            editedAt: message.editedTimestamp || null,
+            isBot: message.author.bot
+        };
+        this.databaseReady.then(ready => {
+            if (!ready) return;
+            return this.database.saveCapturedMessage(record);
+        }).catch(error => {
+            console.error("Could not archive Discord message:", error);
+        });
     }
 
     // main event handler for the current bot instance
@@ -78,13 +140,15 @@ class BOT {
                 }
             });
         } else if (event === "message" || event === "messageUpdate") {
-            const message = args[0];
+            const message = event === "messageUpdate" ? args[1] : args[0];
             const newMessage = args[1];
-            if (!message.author || message.author.bot) return;
+            this._archiveMessage(message);
+            const commandMessage = args[0];
+            if (!commandMessage.author || commandMessage.author.bot) return;
             // send a message event to all the commands
             this.commands.forEach((command, string) => {
                 if (command.module.message)
-                    command.module.message(event, message, newMessage, { database: this.database, uploader: this.uploader, config: this.config });
+                    command.module.message(event, commandMessage, newMessage, { database: this.database, uploader: this.uploader, config: this.config });
             });
         } else if (event === "userUpdate") {
             const oldUser = args[0];

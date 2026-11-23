@@ -21,6 +21,9 @@
         "clientSecret": "",
         "redirectUri": "https://example.com/callback"
     },
+    "messageArchive": {
+        "retentionDays": 730
+    },
     "twitter": {
         "enabled": false,
         "apiKey": "TWITTER_API_KEY",

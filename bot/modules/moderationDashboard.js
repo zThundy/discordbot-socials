@@ -76,13 +76,14 @@ class ModerationDashboard {
         app.get("/", asyncRoute((request, response) => this.serveDashboard(request, response)));
         app.get("/api/guilds", asyncRoute((request, response) => this.listGuilds(request, response)));
         app.get("/api/logs", asyncRoute((request, response) => this.listLogs(request, response)));
+        app.get("/api/messages", asyncRoute((request, response) => this.listMessages(request, response)));
         app.get("/api/tickets", asyncRoute((request, response) => this.listTickets(request, response)));
         app.get("/api/ticket-attachments", asyncRoute((request, response) => this.listTicketAttachments(request, response)));
         app.get("/api/tickets/:ticketId/attachments/:key", asyncRoute((request, response) => this.serveTicketAttachment(request, response)));
         app.get("/api/tickets/:ticketId/transcript", asyncRoute((request, response) => this.serveTicketTranscript(request, response)));
 
         app.use((error, request, response, next) => {
-            if (!["/", "/login", "/callback", "/logout", "/api/guilds", "/api/logs", "/api/tickets", "/api/ticket-attachments"]
+            if (!["/", "/login", "/callback", "/logout", "/api/guilds", "/api/logs", "/api/messages", "/api/tickets", "/api/ticket-attachments"]
                 .includes(request.path) && !/^\/api\/tickets\/[^/]+\/(?:attachments\/[^/]+|transcript)$/.test(request.path)) {
                 return next(error);
             }
@@ -769,6 +770,47 @@ class ModerationDashboard {
             pages: Math.max(1, Math.ceil(total / limit)),
             logs: rows.map((row) => ({ ...row, payload: parsePayload(row) }))
         });
+    }
+
+    async listMessages(request, response) {
+        const access = await this.getAuthorizedGuild(request, response);
+        if (!access) return;
+
+        const search = typeof request.query.search === "string" ? request.query.search.trim() : "";
+        if (search.length > 200) {
+            return response.status(400).json({ error: "Message search must be 200 characters or fewer." });
+        }
+        const page = this.getPage(request);
+        const limit = 50;
+        const offset = (page - 1) * limit;
+        const [rows, total] = await Promise.all([
+            access.bot.database.getCapturedMessages(access.guildId, { limit, offset, search }),
+            access.bot.database.countCapturedMessages(access.guildId, search)
+        ]);
+        response.setHeader("Cache-Control", "no-store");
+        return response.json({
+            page,
+            limit,
+            total,
+            pages: Math.max(1, Math.ceil(total / limit)),
+            retentionDays: access.bot.messageRetentionDays || 730,
+            messages: rows.map(row => ({
+                ...row,
+                attachments: this.parseCapturedMessageData(row.attachmentsJson, row.messageId, "attachments"),
+                embeds: this.parseCapturedMessageData(row.embedsJson, row.messageId, "embeds")
+            }))
+        });
+    }
+
+    parseCapturedMessageData(value, messageId, field) {
+        try {
+            const parsed = JSON.parse(value);
+            if (!Array.isArray(parsed)) throw new Error("Expected an array.");
+            return parsed;
+        } catch (error) {
+            console.error(`Could not parse archived message ${field} for ${messageId}:`, error);
+            return [];
+        }
     }
 }
 
