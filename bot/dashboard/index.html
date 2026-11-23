@@ -323,6 +323,9 @@
                 <button class="tab" type="button" role="tab" aria-selected="false" data-tab="tickets">
                     <span class="tab-symbol" aria-hidden="true">▤</span>Tickets
                 </button>
+                <button class="tab" type="button" role="tab" aria-selected="false" data-tab="dashboard-logs">
+                    <span class="tab-symbol" aria-hidden="true">◷</span>Dashboard logs
+                </button>
             </nav>
         </div>
 
@@ -440,6 +443,35 @@
                 <button id="tickets-next" class="secondary-button" type="button">Next</button>
             </div>
         </section>
+
+        <section id="dashboard-logs-panel" class="panel" role="tabpanel" hidden>
+            <div class="section-heading">
+                <div>
+                    <h1>Dashboard logs</h1>
+                    <p>HTTP requests and user-interface interactions, including dashboard-wide activity.</p>
+                </div>
+                <button id="dashboard-logs-refresh" class="secondary-button" type="button">Refresh</button>
+            </div>
+            <div class="toolbar">
+                <label>Search activity
+                    <input id="dashboard-logs-search" type="search" maxlength="200" placeholder="User, action, endpoint">
+                </label>
+            </div>
+            <p id="dashboard-logs-status" class="status" role="status">Choose a server to load dashboard logs.</p>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr><th>Date</th><th>User</th><th>Action</th><th>Request</th><th>Status</th><th>Details</th></tr>
+                    </thead>
+                    <tbody id="dashboard-logs"></tbody>
+                </table>
+            </div>
+            <div class="pagination">
+                <button id="dashboard-logs-previous" class="secondary-button" type="button">Previous</button>
+                <span id="dashboard-logs-page">Page 1</span>
+                <button id="dashboard-logs-next" class="secondary-button" type="button">Next</button>
+            </div>
+        </section>
     </main>
 
     <section id="json-screen" class="detail-screen" role="dialog" aria-modal="true" aria-labelledby="json-title" hidden>
@@ -461,10 +493,13 @@
         const searchInput = document.getElementById("search");
         const logBody = document.getElementById("logs");
         const detailScreen = document.getElementById("json-screen");
-        const pageState = { dashboard: 1, messages: 1, attachments: 1, tickets: 1 };
-        let totalPages = { dashboard: 1, messages: 1, attachments: 1, tickets: 1 };
+        const pageState = { dashboard: 1, messages: 1, attachments: 1, tickets: 1, "dashboard-logs": 1 };
+        let totalPages = { dashboard: 1, messages: 1, attachments: 1, tickets: 1, "dashboard-logs": 1 };
         let loadedLogs = [];
         let activeTab = "dashboard";
+        const dashboardInteractionQueue = [];
+        let dashboardInteractionTimer = null;
+        let dashboardInteractionSending = false;
         let currentEventLog = null;
         let currentMessageEmbed = null;
         let currentEventPayload = null;
@@ -1057,11 +1092,130 @@
             }
         }
 
+        function renderDashboardLogs(logs) {
+            const body = document.getElementById("dashboard-logs");
+            body.replaceChildren();
+            if (!logs.length) {
+                const row = document.createElement("tr");
+                const cell = appendCell(row, "No dashboard activity found.", "empty-cell");
+                cell.colSpan = 6;
+                body.appendChild(row);
+                return;
+            }
+            logs.forEach((log) => {
+                const row = document.createElement("tr");
+                appendCell(row, formatDate(log.createdAt));
+                appendCell(row, log.username
+                    ? `${log.username} (${log.userId || "unknown"})`
+                    : log.userId || "Unauthenticated");
+                appendCell(row, log.action);
+                appendCell(row, `${log.method} ${log.path}`);
+                appendCell(row, log.status === null ? "—" : String(log.status));
+                appendCell(row, JSON.stringify(log.details || {}));
+                body.appendChild(row);
+            });
+        }
+
+        async function loadDashboardLogs() {
+            if (!guildSelect.value) return;
+            setStatus("dashboard-logs-status", "Loading dashboard logs…");
+            const parameters = selectedGuildParameters();
+            parameters.set("search", document.getElementById("dashboard-logs-search").value.trim());
+            try {
+                const data = await fetchJson(`/api/dashboard-logs?${parameters}`);
+                renderDashboardLogs(data.logs);
+                updatePagination("dashboard-logs", data, "dashboard-logs");
+                setStatus("dashboard-logs-status", data.total
+                    ? `Showing ${data.logs.length} of ${data.total} dashboard interactions.`
+                    : "No dashboard activity found.");
+            } catch (error) {
+                setStatus("dashboard-logs-status", error.message, true);
+            }
+        }
+
+        async function flushDashboardInteractions() {
+            if (dashboardInteractionSending || !guildSelect.value || !dashboardInteractionQueue.length) return;
+            dashboardInteractionSending = true;
+            const guildId = dashboardInteractionQueue[0].guildId;
+            if (!guildId) {
+                dashboardInteractionSending = false;
+                return;
+            }
+            const events = [];
+            while (events.length < 25 &&
+                dashboardInteractionQueue.length &&
+                dashboardInteractionQueue[0].guildId === guildId) {
+                events.push(dashboardInteractionQueue.shift());
+            }
+            try {
+                const response = await fetch(`/api/dashboard-interactions?${new URLSearchParams({ guildId })}`, {
+                    method: "POST",
+                    credentials: "same-origin",
+                    cache: "no-store",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ events }),
+                    keepalive: true
+                });
+                if (!response.ok) throw new Error(`Interaction audit request failed with HTTP ${response.status}.`);
+            } catch (error) {
+                console.error("Could not send dashboard interaction audit:", error);
+                const retries = (events[0].retries || 0) + 1;
+                if (retries <= 3) {
+                    dashboardInteractionQueue.unshift(...events.map(item => ({ ...item, retries })));
+                } else {
+                    console.error(`Discarding ${events.length} dashboard interactions after ${retries} failed attempts.`);
+                }
+            } finally {
+                dashboardInteractionSending = false;
+                if (dashboardInteractionQueue.length) {
+                    dashboardInteractionTimer = setTimeout(flushDashboardInteractions, 1000);
+                }
+            }
+        }
+
+        function captureDashboardInteraction(event) {
+            if (!event.isTrusted) return;
+            const eventTarget = event.target instanceof Element
+                ? event.target
+                : event.target === document || event.target === window
+                    ? document.documentElement
+                    : null;
+            const target = eventTarget
+                ? eventTarget.closest("button, a, input, select, textarea, [role], [data-tab]") || eventTarget
+                : null;
+            if (!target) return;
+            const guildId = target.dataset.guildId || guildSelect.value;
+            if (!guildId) return;
+            dashboardInteractionQueue.push({
+                type: event.type,
+                timestamp: Date.now(),
+                guildId,
+                retries: 0,
+                target: {
+                    id: target.id || null,
+                    tag: target.tagName.toLowerCase(),
+                    role: target.getAttribute("role"),
+                    name: target.getAttribute("name"),
+                    controlType: target.getAttribute("type"),
+                    tab: target.getAttribute("data-tab"),
+                    valueLength: typeof target.value === "string" ? target.value.length : null
+                }
+            });
+            if (dashboardInteractionQueue.length >= 25) {
+                clearTimeout(dashboardInteractionTimer);
+                dashboardInteractionTimer = null;
+                flushDashboardInteractions();
+            } else if (!dashboardInteractionTimer) {
+                dashboardInteractionTimer = setTimeout(flushDashboardInteractions, 500);
+            }
+        }
+
         function loadActiveTab() {
             if (activeTab === "dashboard") return loadLogs();
             if (activeTab === "messages") return loadMessages();
             if (activeTab === "attachments") return loadAttachments();
-            return loadTickets();
+            if (activeTab === "tickets") return loadTickets();
+            return loadDashboardLogs();
         }
 
         function activateTab(name) {
@@ -1106,6 +1260,7 @@
             pageState.messages = 1;
             pageState.attachments = 1;
             pageState.tickets = 1;
+            pageState["dashboard-logs"] = 1;
             loadActiveTab();
         }
 
@@ -1201,6 +1356,24 @@
         });
         document.getElementById("attachments-refresh").addEventListener("click", loadAttachments);
         document.getElementById("tickets-refresh").addEventListener("click", loadTickets);
+        document.getElementById("dashboard-logs-refresh").addEventListener("click", loadDashboardLogs);
+        document.getElementById("dashboard-logs-search").addEventListener("change", () => {
+            pageState["dashboard-logs"] = 1;
+            loadDashboardLogs();
+        });
+        [
+            "click", "dblclick", "auxclick", "input", "change", "submit", "reset",
+            "keydown", "keyup", "focusin", "focusout", "pointerdown", "pointerup",
+            "touchstart", "touchend", "contextmenu", "copy", "cut", "paste",
+            "dragstart", "dragend", "drop", "scroll", "wheel"
+        ]
+            .forEach((eventType) => document.addEventListener(eventType, captureDashboardInteraction, true));
+        ["popstate", "hashchange"].forEach((eventType) =>
+            window.addEventListener(eventType, captureDashboardInteraction, true));
+        window.addEventListener("pagehide", () => {
+            clearTimeout(dashboardInteractionTimer);
+            flushDashboardInteractions();
+        });
         [
             ["logs-previous", "dashboard", loadLogs, -1],
             ["logs-next", "dashboard", loadLogs, 1],
@@ -1209,7 +1382,9 @@
             ["attachments-previous", "attachments", loadAttachments, -1],
             ["attachments-next", "attachments", loadAttachments, 1],
             ["tickets-previous", "tickets", loadTickets, -1],
-            ["tickets-next", "tickets", loadTickets, 1]
+            ["tickets-next", "tickets", loadTickets, 1],
+            ["dashboard-logs-previous", "dashboard-logs", loadDashboardLogs, -1],
+            ["dashboard-logs-next", "dashboard-logs", loadDashboardLogs, 1]
         ].forEach(([id, name, loader, direction]) => {
             document.getElementById(id).addEventListener("click", () => {
                 pageState[name] = Math.max(1, Math.min(totalPages[name], pageState[name] + direction));

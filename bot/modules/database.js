@@ -183,6 +183,8 @@ class SQL {
                 await this._run("CREATE TABLE IF NOT EXISTS moderationLogConfig (guildId TEXT PRIMARY KEY, channelId TEXT NOT NULL)");
                 await this._run("CREATE TABLE IF NOT EXISTS moderationLogs (id INTEGER PRIMARY KEY AUTOINCREMENT, guildId TEXT NOT NULL, createdAt INTEGER NOT NULL, eventType TEXT NOT NULL, userId TEXT, channelId TEXT, payloadJson TEXT NOT NULL)");
                 await this._run("CREATE INDEX IF NOT EXISTS idx_moderationLogs_guild_created ON moderationLogs (guildId, createdAt DESC, id DESC)");
+                await this._run("CREATE TABLE IF NOT EXISTS dashboardLogs (id INTEGER PRIMARY KEY AUTOINCREMENT, createdAt INTEGER NOT NULL, guildId TEXT, userId TEXT, username TEXT, action TEXT NOT NULL, method TEXT NOT NULL, path TEXT NOT NULL, status INTEGER, detailsJson TEXT NOT NULL)");
+                await this._run("CREATE INDEX IF NOT EXISTS idx_dashboardLogs_guild_created ON dashboardLogs (guildId, createdAt DESC, id DESC)");
                 await this._run("CREATE TABLE IF NOT EXISTS capturedMessages (messageId TEXT PRIMARY KEY, guildId TEXT NOT NULL, channelId TEXT NOT NULL, channelName TEXT, userId TEXT NOT NULL, authorName TEXT NOT NULL, content TEXT NOT NULL, attachmentsJson TEXT NOT NULL, embedsJson TEXT NOT NULL, createdAt INTEGER NOT NULL, editedAt INTEGER, isBot INTEGER NOT NULL DEFAULT 0)");
                 await this._run("CREATE INDEX IF NOT EXISTS idx_capturedMessages_guild_created ON capturedMessages (guildId, createdAt DESC, messageId DESC)");
                 resolve();
@@ -1149,6 +1151,65 @@ class SQL {
             }
             this.db.get(query, params, (err, row) => {
                 if (err) return reject(err);
+                resolve(row.count);
+            });
+        });
+    }
+
+    addDashboardLog({ createdAt, guildId, userId, username, action, method, path, status, details }) {
+        return new Promise((resolve, reject) => {
+            this.db.run(
+                `INSERT INTO dashboardLogs
+                    (createdAt, guildId, userId, username, action, method, path, status, detailsJson)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    createdAt,
+                    guildId || null,
+                    userId || null,
+                    username || null,
+                    action,
+                    method,
+                    path,
+                    status === undefined ? null : status,
+                    JSON.stringify(details || {})
+                ],
+                function (error) {
+                    if (error) return reject(error);
+                    resolve(this.lastID);
+                }
+            );
+        });
+    }
+
+    getDashboardLogs(guildId, { limit, offset, search }) {
+        return new Promise((resolve, reject) => {
+            const params = [guildId];
+            let query = "SELECT id, createdAt, guildId, userId, username, action, method, path, status, detailsJson FROM dashboardLogs WHERE (guildId = ? OR guildId IS NULL)";
+            if (search) {
+                query += " AND (action LIKE ? OR username LIKE ? OR userId LIKE ? OR path LIKE ? OR detailsJson LIKE ?)";
+                const searchPattern = `%${search}%`;
+                params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
+            }
+            query += " ORDER BY createdAt DESC, id DESC LIMIT ? OFFSET ?";
+            params.push(limit, offset);
+            this.db.all(query, params, (error, rows) => {
+                if (error) return reject(error);
+                resolve(rows);
+            });
+        });
+    }
+
+    countDashboardLogs(guildId, search) {
+        return new Promise((resolve, reject) => {
+            const params = [guildId];
+            let query = "SELECT COUNT(*) AS count FROM dashboardLogs WHERE (guildId = ? OR guildId IS NULL)";
+            if (search) {
+                query += " AND (action LIKE ? OR username LIKE ? OR userId LIKE ? OR path LIKE ? OR detailsJson LIKE ?)";
+                const searchPattern = `%${search}%`;
+                params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
+            }
+            this.db.get(query, params, (error, row) => {
+                if (error) return reject(error);
                 resolve(row.count);
             });
         });

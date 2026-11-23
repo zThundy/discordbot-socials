@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const express = require("express");
 const fs = require("fs");
 const path = require("path");
 const { PermissionsBitField } = require("discord.js");
@@ -63,19 +64,47 @@ class ModerationDashboard {
         this.sessions = new Map();
         this.redirectUri = this.getRedirectUri();
         this.secureCookies = this.redirectUri.startsWith("https://");
+        this.pendingDashboardLogs = [];
+        this.dashboardLogFlush = null;
+        this.dashboardLogDatabases = new WeakSet();
 
         app.use((request, response, next) => {
             response.setHeader("X-Content-Type-Options", "nosniff");
             response.setHeader("X-Frame-Options", "DENY");
             response.setHeader("Referrer-Policy", "no-referrer");
+            response.once("finish", () => {
+                const current = response.locals.dashboardAuditUser
+                    ? { session: { user: response.locals.dashboardAuditUser } }
+                    : this.readSession(request);
+                const user = current && current.session.user;
+                this.recordDashboardLog({
+                    createdAt: Date.now(),
+                    guildId: response.locals.dashboardGuildId || null,
+                    userId: user && user.id || null,
+                    username: user && (user.global_name || user.username) || null,
+                    action: `HTTP ${request.method} ${request.path}`,
+                    method: request.method,
+                    path: request.path,
+                    status: response.statusCode,
+                    details: {
+                        queryKeys: Object.keys(request.query || {}).filter(key =>
+                            !["code", "state", "token", "access_token", "refresh_token"].includes(key.toLowerCase())
+                        ),
+                        contentType: request.get("content-type") || null
+                    }
+                });
+            });
             next();
         });
+        app.use(express.json({ limit: "32kb" }));
         app.get("/login", (request, response) => this.login(request, response));
         app.get("/callback", asyncRoute((request, response) => this.callback(request, response)));
         app.get("/logout", (request, response) => this.logout(request, response));
         app.get("/", asyncRoute((request, response) => this.serveDashboard(request, response)));
         app.get("/api/guilds", asyncRoute((request, response) => this.listGuilds(request, response)));
         app.get("/api/logs", asyncRoute((request, response) => this.listLogs(request, response)));
+        app.get("/api/dashboard-logs", asyncRoute((request, response) => this.listDashboardLogs(request, response)));
+        app.post("/api/dashboard-interactions", asyncRoute((request, response) => this.recordClientInteractions(request, response)));
         app.get("/api/messages", asyncRoute((request, response) => this.listMessages(request, response)));
         app.get("/api/tickets", asyncRoute((request, response) => this.listTickets(request, response)));
         app.get("/api/ticket-attachments", asyncRoute((request, response) => this.listTicketAttachments(request, response)));
@@ -83,7 +112,7 @@ class ModerationDashboard {
         app.get("/api/tickets/:ticketId/transcript", asyncRoute((request, response) => this.serveTicketTranscript(request, response)));
 
         app.use((error, request, response, next) => {
-            if (!["/", "/login", "/callback", "/logout", "/api/guilds", "/api/logs", "/api/messages", "/api/tickets", "/api/ticket-attachments"]
+            if (!["/", "/login", "/callback", "/logout", "/api/guilds", "/api/logs", "/api/dashboard-logs", "/api/dashboard-interactions", "/api/messages", "/api/tickets", "/api/ticket-attachments"]
                 .includes(request.path) && !/^\/api\/tickets\/[^/]+\/(?:attachments\/[^/]+|transcript)$/.test(request.path)) {
                 return next(error);
             }
@@ -201,6 +230,50 @@ class ModerationDashboard {
         response.append("Set-Cookie", serializeCookie(name, "", { maxAge: 0, secure: this.secureCookies }));
     }
 
+    getDashboardLogDatabase() {
+        const bots = new Set(Object.values(this.bots || {}));
+        if (this.bots && typeof this.bots.values === "function") {
+            for (const bot of this.bots.values()) bots.add(bot);
+        }
+        for (const bot of bots) {
+            if (bot && bot.database && bot.database.ready) {
+                if (!this.dashboardLogDatabases.has(bot.database)) {
+                    this.dashboardLogDatabases.add(bot.database);
+                    bot.database.ready.then(() => this.flushPendingDashboardLogs()).catch(error => {
+                        console.error("Could not initialize dashboard interaction logging:", error);
+                    });
+                }
+                return bot.database;
+            }
+        }
+        return null;
+    }
+
+    recordDashboardLog(entry) {
+        this.pendingDashboardLogs.push(entry);
+        return this.flushPendingDashboardLogs();
+    }
+
+    flushPendingDashboardLogs() {
+        if (this.dashboardLogFlush) return this.dashboardLogFlush;
+
+        const database = this.getDashboardLogDatabase();
+        if (!database) return Promise.resolve();
+
+        this.dashboardLogFlush = database.ready.then(async () => {
+            while (this.pendingDashboardLogs.length) {
+                const next = this.pendingDashboardLogs[0];
+                await database.addDashboardLog(next);
+                this.pendingDashboardLogs.shift();
+            }
+        }).catch(error => {
+            console.error("Could not save dashboard interaction logs:", error);
+        }).finally(() => {
+            this.dashboardLogFlush = null;
+        });
+        return this.dashboardLogFlush;
+    }
+
     login(request, response) {
         if (!this.isConfigured()) {
             return this.sendErrorPage(
@@ -305,13 +378,17 @@ class ModerationDashboard {
             accessTokenExpiresAt: Date.now() + token.expires_in * 1000,
             expiresAt: Date.now() + SESSION_LIFETIME
         });
+        response.locals.dashboardAuditUser = user;
         this.setSessionCookie(response, sessionId);
         return response.redirect("/");
     }
 
     logout(request, response) {
         const current = this.readSession(request);
-        if (current) this.sessions.delete(current.sessionId);
+        if (current) {
+            response.locals.dashboardAuditUser = current.session.user;
+            this.sessions.delete(current.sessionId);
+        }
         this.clearCookie(response, SESSION_COOKIE);
         return response.redirect("/login");
     }
@@ -369,6 +446,7 @@ class ModerationDashboard {
             response.status(401).json({ error: "Please sign in with Discord." });
             return null;
         }
+        response.locals.dashboardAuditUser = current.session.user;
 
         try {
             const guilds = await this.getCurrentUserGuilds(current.session);
@@ -470,6 +548,7 @@ class ModerationDashboard {
             response.status(404).json({ error: "The bot is not active in this server." });
             return null;
         }
+        response.locals.dashboardGuildId = guildId;
         return { current, guildId, bot };
     }
 
@@ -809,6 +888,95 @@ class ModerationDashboard {
             pages: Math.max(1, Math.ceil(total / limit)),
             logs: rows.map((row) => ({ ...row, payload: parsePayload(row) }))
         });
+    }
+
+    async recordClientInteractions(request, response) {
+        const access = await this.getAuthorizedGuild(request, response);
+        if (!access) return;
+
+        const events = request.body && request.body.events;
+        if (!Array.isArray(events) || events.length < 1 || events.length > 25) {
+            return response.status(400).json({ error: "Provide between 1 and 25 dashboard interactions." });
+        }
+        for (const event of events) {
+            if (!event || ![
+                "click", "dblclick", "auxclick", "input", "change", "submit", "reset",
+                "keydown", "keyup", "focusin", "focusout", "pointerdown", "pointerup",
+                "touchstart", "touchend", "contextmenu", "copy", "cut", "paste",
+                "dragstart", "dragend", "drop", "wheel", "popstate", "hashchange"
+            ].includes(event.type)) {
+                return response.status(400).json({ error: "A dashboard interaction has an invalid event type." });
+            }
+            const target = event.target || {};
+            const details = {
+                type: event.type,
+                target: {
+                    id: typeof target.id === "string" ? target.id.slice(0, 100) : null,
+                    tag: typeof target.tag === "string" ? target.tag.slice(0, 30) : null,
+                    role: typeof target.role === "string" ? target.role.slice(0, 40) : null,
+                    name: typeof target.name === "string" ? target.name.slice(0, 100) : null,
+                    controlType: typeof target.controlType === "string" ? target.controlType.slice(0, 30) : null,
+                    tab: typeof target.tab === "string" ? target.tab.slice(0, 60) : null
+                },
+                valueLength: Number.isSafeInteger(target.valueLength) && target.valueLength >= 0
+                    ? Math.min(target.valueLength, 10000)
+                    : null,
+                clientTimestamp: Number.isSafeInteger(event.timestamp) ? event.timestamp : null
+            };
+            await access.bot.database.addDashboardLog({
+                createdAt: Date.now(),
+                guildId: access.guildId,
+                userId: access.current.session.user.id,
+                username: access.current.session.user.global_name || access.current.session.user.username,
+                action: `UI ${event.type}`,
+                method: "CLIENT",
+                path: "/",
+                status: 200,
+                details
+            });
+        }
+        return response.status(204).end();
+    }
+
+    async listDashboardLogs(request, response) {
+        const access = await this.getAuthorizedGuild(request, response);
+        if (!access) return;
+
+        const search = typeof request.query.search === "string" ? request.query.search.trim() : "";
+        if (search.length > 200) {
+            return response.status(400).json({ error: "Dashboard log search must be 200 characters or fewer." });
+        }
+        const page = this.getPage(request);
+        const limit = 50;
+        const offset = (page - 1) * limit;
+        const [rows, total] = await Promise.all([
+            access.bot.database.getDashboardLogs(access.guildId, { limit, offset, search }),
+            access.bot.database.countDashboardLogs(access.guildId, search)
+        ]);
+        response.setHeader("Cache-Control", "no-store");
+        return response.json({
+            page,
+            limit,
+            total,
+            pages: Math.max(1, Math.ceil(total / limit)),
+            logs: rows.map(row => ({
+                ...row,
+                details: this.parseDashboardLogDetails(row.detailsJson, row.id)
+            }))
+        });
+    }
+
+    parseDashboardLogDetails(value, id) {
+        try {
+            const parsed = JSON.parse(value);
+            if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+                throw new Error("Expected an object.");
+            }
+            return parsed;
+        } catch (error) {
+            console.error(`Could not parse dashboard log details for ${id}:`, error);
+            return {};
+        }
     }
 
     async listMessages(request, response) {
