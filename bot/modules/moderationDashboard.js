@@ -88,8 +88,44 @@ class ModerationDashboard {
             }
             if (response.headersSent) return next(error);
             console.error("Moderator dashboard request failed:", error);
-            response.status(500).json({ error: "The dashboard request could not be completed." });
+            if (request.path.startsWith("/api/")) {
+                return response.status(500).json({ error: "The dashboard request could not be completed." });
+            }
+            return this.sendErrorPage(response, 500, "The dashboard request could not be completed.");
         });
+    }
+
+    escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, (character) => ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            "\"": "&quot;",
+            "'": "&#39;"
+        })[character]);
+    }
+
+    sendStatusPage(response, templateName, status, message) {
+        const templatePath = path.join(__dirname, "..", "dashboard", templateName);
+        const html = fs.readFileSync(templatePath, "utf8")
+            .replaceAll("{{STATUS_CODE}}", String(status))
+            .replaceAll("{{MESSAGE}}", this.escapeHtml(message));
+        response.status(status);
+        response.setHeader("Cache-Control", "no-store");
+        response.setHeader("Content-Type", "text/html; charset=utf-8");
+        response.setHeader(
+            "Content-Security-Policy",
+            "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+        );
+        return response.send(html);
+    }
+
+    sendErrorPage(response, status, message) {
+        return this.sendStatusPage(response, "error.html", status, message);
+    }
+
+    sendPermissionPage(response, message) {
+        return this.sendStatusPage(response, "permission.html", 403, message);
     }
 
     getRedirectUri() {
@@ -166,7 +202,9 @@ class ModerationDashboard {
 
     login(request, response) {
         if (!this.isConfigured()) {
-            return response.status(503).send(
+            return this.sendErrorPage(
+                response,
+                503,
                 "Discord OAuth is not configured. Set dashboard.clientId and dashboard.clientSecret in config.json."
             );
         }
@@ -241,17 +279,17 @@ class ModerationDashboard {
         this.clearCookie(response, STATE_COOKIE);
         response.setHeader("Cache-Control", "no-store");
         if (!this.isConfigured()) {
-            return response.status(503).send("Discord OAuth is not configured.");
+            return this.sendErrorPage(response, 503, "Discord OAuth is not configured.");
         }
 
         const cookies = parseCookies(request.headers.cookie);
         const state = request.query.state;
         const code = request.query.code;
         if (!state || !cookies[STATE_COOKIE] || state !== cookies[STATE_COOKIE]) {
-            return response.status(400).send("The Discord authorization request is invalid or expired. Please try again.");
+            return this.sendErrorPage(response, 400, "The Discord authorization request is invalid or expired. Please try again.");
         }
-        if (request.query.error) return response.status(401).send("Discord authorization was cancelled.");
-        if (!code) return response.status(400).send("Discord did not return an authorization code.");
+        if (request.query.error) return this.sendErrorPage(response, 401, "Discord authorization was cancelled.");
+        if (!code) return this.sendErrorPage(response, 400, "Discord did not return an authorization code.");
 
         const token = await this.exchangeToken({ grant_type: "authorization_code", code });
         const user = await this.fetchDiscord("/users/@me", token.access_token);
@@ -571,14 +609,14 @@ class ModerationDashboard {
         const key = String(request.params.key || "");
         if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ticketId) ||
             !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:\.[a-z0-9]{1,10})?$/i.test(key)) {
-            return response.status(404).send("Ticket attachment not found.");
+            return this.sendErrorPage(response, 404, "Ticket attachment not found.");
         }
 
         let attachmentFound = false;
         const openTicket = await access.bot.database.getTicket(ticketId);
         if (openTicket) {
             if (openTicket.guildId !== access.guildId) {
-                return response.status(404).send("Ticket attachment not found.");
+                return this.sendErrorPage(response, 404, "Ticket attachment not found.");
             }
             const messages = await access.bot.database.getAllTicketMessages(ticketId);
             attachmentFound = messages.some((message) => {
@@ -605,17 +643,17 @@ class ModerationDashboard {
             }
         }
 
-        if (!attachmentFound) return response.status(404).send("Ticket attachment not found.");
+        if (!attachmentFound) return this.sendErrorPage(response, 404, "Ticket attachment not found.");
 
         const filePath = path.join(path.resolve(this.config.uploader.folder), key);
         let stats;
         try {
             stats = await fs.promises.stat(filePath);
         } catch (error) {
-            if (error.code === "ENOENT") return response.status(404).send("Ticket attachment not found.");
+            if (error.code === "ENOENT") return this.sendErrorPage(response, 404, "Ticket attachment not found.");
             throw error;
         }
-        if (!stats.isFile()) return response.status(404).send("Ticket attachment not found.");
+        if (!stats.isFile()) return this.sendErrorPage(response, 404, "Ticket attachment not found.");
 
         const extension = path.extname(key).toLowerCase();
         const inlineImageTypes = {
@@ -645,7 +683,7 @@ class ModerationDashboard {
 
         const ticketId = String(request.params.ticketId || "");
         if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ticketId)) {
-            return response.status(404).send("Ticket transcript not found.");
+            return this.sendErrorPage(response, 404, "Ticket transcript not found.");
         }
 
         const folder = path.resolve(this.config.tickets.folder);
@@ -653,11 +691,11 @@ class ModerationDashboard {
         try {
             metadata = JSON.parse(await fs.promises.readFile(path.join(folder, `${ticketId}.json`), "utf8"));
         } catch (error) {
-            if (error.code === "ENOENT") return response.status(404).send("Ticket transcript not found.");
+            if (error.code === "ENOENT") return this.sendErrorPage(response, 404, "Ticket transcript not found.");
             throw error;
         }
         if (metadata.guildId !== access.guildId || metadata.ticketId !== ticketId) {
-            return response.status(404).send("Ticket transcript not found.");
+            return this.sendErrorPage(response, 404, "Ticket transcript not found.");
         }
 
         response.setHeader(
@@ -675,7 +713,7 @@ class ModerationDashboard {
         const current = await this.authenticate(request, response);
         if (!current) return;
         if (!this.getAvailableGuilds(current.guilds).length) {
-            return response.status(403).send("You need Administrator permissions in a server where this bot is active.");
+            return this.sendPermissionPage(response, "You need Administrator permissions in a server where this bot is active.");
         }
         response.setHeader("Cache-Control", "no-store");
         response.setHeader(
