@@ -198,6 +198,7 @@
         .operation { min-width: 160px; font-weight: 700; }
         .message-content { max-width: 720px; white-space: pre-wrap; overflow-wrap: anywhere; }
         .message-attachment { margin-top: 6px; color: var(--muted); font-size: 11px; }
+        .message-embed-button { display: block; max-width: 100%; margin-top: 7px; overflow-wrap: anywhere; text-align: left; white-space: normal; }
         .event-trigger { cursor: pointer; color: #d3c4ff; }
         .event-trigger:hover { text-decoration: underline; }
         .muted { margin-top: 4px; color: var(--muted); font-size: 11px; }
@@ -465,6 +466,7 @@
         let loadedLogs = [];
         let activeTab = "dashboard";
         let currentEventLog = null;
+        let currentMessageEmbed = null;
         let currentEventPayload = null;
 
         function setStatus(id, message, isError = false) {
@@ -545,6 +547,7 @@
             const operation = payload.operation || {};
             const details = operation.details || {};
             currentEventLog = log;
+            currentMessageEmbed = null;
             currentEventPayload = payload;
             document.getElementById("json-title").textContent = operation.title || log.eventType || "Event details";
 
@@ -646,6 +649,55 @@
             if (!content.childElementCount) {
                 addDetailCard(content, "Event data", { Details: "No additional event details were recorded." });
             }
+            detailScreen.hidden = false;
+            document.getElementById("json-back").focus();
+        }
+
+        function showMessageEmbed(message, embed, index) {
+            currentEventLog = null;
+            currentMessageEmbed = { message, embed, index };
+            currentEventPayload = { type: "message-embed", ...currentMessageEmbed };
+            document.getElementById("json-title").textContent = embed.title || `Message embed ${index + 1}`;
+
+            const content = document.getElementById("event-detail-content");
+            content.replaceChildren();
+            content.hidden = false;
+            document.getElementById("json-content").hidden = true;
+            document.getElementById("show-json").hidden = false;
+            document.getElementById("show-details").hidden = true;
+
+            addDetailCard(content, "Message", {
+                Author: `${message.authorName || "Unknown"} (${message.userId || "unknown"})`,
+                Channel: message.channelName
+                    ? `#${message.channelName} (${message.channelId})`
+                    : message.channelId,
+                "Sent at": formatDate(message.createdAt),
+                Content: message.content,
+                "Message ID": message.messageId
+            });
+
+            addDetailCard(content, "Embed", {
+                Title: embed.title,
+                Description: embed.description,
+                URL: embed.url,
+                Color: embed.color,
+                Timestamp: embed.timestamp,
+                Author: embed.author,
+                Footer: embed.footer,
+                Image: embed.image,
+                Thumbnail: embed.thumbnail,
+                Video: embed.video,
+                Provider: embed.provider
+            });
+
+            if (Array.isArray(embed.fields) && embed.fields.length) {
+                const fields = Object.fromEntries(embed.fields.map((field, fieldIndex) => [
+                    `Field ${fieldIndex + 1}${field.name ? `: ${field.name}` : ""}`,
+                    field.value || ""
+                ]));
+                addDetailCard(content, "Embed fields", fields);
+            }
+
             detailScreen.hidden = false;
             document.getElementById("json-back").focus();
         }
@@ -800,13 +852,13 @@
                     item.textContent = `Attachment: ${attachment.name || "file"}`;
                     contentCell.appendChild(item);
                 });
-                message.embeds.forEach((embed) => {
-                    const title = embed.title || embed.description;
-                    if (!title) return;
-                    const item = document.createElement("div");
-                    item.className = "message-attachment";
-                    item.textContent = `Embed: ${title}`;
-                    contentCell.appendChild(item);
+                message.embeds.forEach((embed, index) => {
+                    const button = document.createElement("button");
+                    button.className = "icon-button message-embed-button";
+                    button.type = "button";
+                    button.textContent = `View embed: ${embed.title || embed.author && embed.author.name || `Embed ${index + 1}`}`;
+                    button.addEventListener("click", () => showMessageEmbed(message, embed, index));
+                    contentCell.appendChild(button);
                 });
                 body.appendChild(row);
             });
@@ -1131,6 +1183,9 @@
         document.getElementById("show-json").addEventListener("click", showJson);
         document.getElementById("show-details").addEventListener("click", () => {
             if (currentEventLog) showEventDetails(currentEventLog);
+            else if (currentMessageEmbed) {
+                showMessageEmbed(currentMessageEmbed.message, currentMessageEmbed.embed, currentMessageEmbed.index);
+            }
         });
         document.getElementById("json-back").addEventListener("click", () => { detailScreen.hidden = true; });
         document.addEventListener("keydown", (event) => {

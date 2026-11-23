@@ -404,15 +404,53 @@ class ModerationDashboard {
         }
     }
 
-    getAvailableGuilds(guilds) {
-        return guilds.filter((guild) => this.isAdministrator(guild) && this.bots[guild.id])
-            .map((guild) => {
-                const server = this.client.guilds.cache.get(guild.id);
-                return server
-                    ? { id: server.id, name: server.name, iconUrl: server.iconURL() }
-                    : null;
-            })
-            .filter(Boolean);
+    getConfiguredGuildAccessRoles(guildId) {
+        const roleMap = this.config.dashboard && this.config.dashboard.guildAccessRoles;
+        if (roleMap === undefined) return [];
+        if (!roleMap || typeof roleMap !== "object" || Array.isArray(roleMap)) {
+            throw new TypeError("dashboard.guildAccessRoles must map guild IDs to arrays of role IDs.");
+        }
+        const roleIds = roleMap[guildId];
+        if (roleIds === undefined) return [];
+        if (!Array.isArray(roleIds) || roleIds.some(roleId =>
+            typeof roleId !== "string" || !roleId.trim() || roleId.trim() !== roleId
+        )) {
+            throw new TypeError(`dashboard.guildAccessRoles.${guildId} must be an array of non-empty role IDs.`);
+        }
+        return [...new Set(roleIds)];
+    }
+
+    async hasConfiguredGuildRole(guildId, userId) {
+        const roleIds = this.getConfiguredGuildAccessRoles(guildId);
+        if (!roleIds.length) return false;
+
+        const bot = this.bots[guildId];
+        if (!bot || !bot.guild || !bot.guild.members) return false;
+        let member = bot.guild.members.cache.get(userId);
+        if (!member) {
+            try {
+                member = await bot.guild.members.fetch(userId);
+            } catch (error) {
+                if (error.code === 10007 || error.status === 404) return false;
+                console.error(`Could not check dashboard role access for user ${userId} in guild ${guildId}:`, error);
+                throw error;
+            }
+        }
+        return roleIds.some(roleId => member.roles.cache.has(roleId));
+    }
+
+    async canAccessGuild(guild, userId) {
+        return this.isAdministrator(guild) || this.hasConfiguredGuildRole(guild.id, userId);
+    }
+
+    async getAvailableGuilds(guilds, userId) {
+        const available = [];
+        for (const guild of guilds) {
+            if (!this.bots[guild.id] || !await this.canAccessGuild(guild, userId)) continue;
+            const server = this.client.guilds.cache.get(guild.id);
+            if (server) available.push({ id: server.id, name: server.name, iconUrl: server.iconURL() });
+        }
+        return available;
     }
 
     async getAuthorizedGuild(request, response) {
@@ -420,9 +458,10 @@ class ModerationDashboard {
         if (!current) return null;
 
         const guildId = String(request.query.guildId || "");
-        const authorized = current.guilds.some((guild) => guild.id === guildId && this.isAdministrator(guild));
+        const userGuild = current.guilds.find(guild => guild.id === guildId);
+        const authorized = userGuild && await this.canAccessGuild(userGuild, current.session.user.id);
         if (!authorized) {
-            response.status(403).json({ error: "Administrator access is required for this server." });
+            response.status(403).json({ error: "Administrator permissions or an allowed server role are required." });
             return null;
         }
 
@@ -713,8 +752,8 @@ class ModerationDashboard {
         if (!this.readSession(request)) return response.redirect("/login");
         const current = await this.authenticate(request, response);
         if (!current) return;
-        if (!this.getAvailableGuilds(current.guilds).length) {
-            return this.sendPermissionPage(response, "You need Administrator permissions in a server where this bot is active.");
+        if (!(await this.getAvailableGuilds(current.guilds, current.session.user.id)).length) {
+            return this.sendPermissionPage(response, "You need Administrator permissions or an allowed server role in a server where this bot is active.");
         }
         response.setHeader("Cache-Control", "no-store");
         response.setHeader(
@@ -744,7 +783,7 @@ class ModerationDashboard {
                     ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.${user.avatar.startsWith("a_") ? "gif" : "png"}?size=64`
                     : `https://cdn.discordapp.com/embed/avatars/${defaultAvatarIndex}.png`
             },
-            guilds: this.getAvailableGuilds(current.guilds)
+            guilds: await this.getAvailableGuilds(current.guilds, user.id)
         });
     }
 

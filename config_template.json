@@ -19,7 +19,10 @@
         "publicUrl": "https://example.com",
         "clientId": "",
         "clientSecret": "",
-        "redirectUri": "https://example.com/callback"
+        "redirectUri": "https://example.com/callback",
+        "guildAccessRoles": {
+            "GUILD_ID": ["ROLE_ID_1", "ROLE_ID_2"]
+        }
     },
     "messageArchive": {
         "retentionDays": 730
