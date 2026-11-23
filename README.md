@@ -52,6 +52,9 @@ If `config.json` is missing at startup, the bot copies `config_template.json` to
 | `uploader.httpIp`, `uploader.httpPort` | Address and port used by the attachment server. |
 | `uploader.deleteFiles` | Whether uploaded files are automatically deleted. |
 | `uploader.deleteFilesAfterDays` | Retention period in days when automatic file deletion is enabled. |
+| `dashboard.publicUrl` | Public HTTP(S) origin for the dashboard; defaults to `https://dashboard.slushie.live`. |
+| `dashboard.clientId`, `dashboard.clientSecret` | Discord OAuth2 application credentials used to authenticate moderator dashboard users. |
+| `dashboard.redirectUri` | Optional full OAuth2 callback URL. Defaults to `<dashboard.publicUrl>/callback`. |
 | `twitter.enabled` | Set to `true` to load `/twitter`. |
 | `twitter.apiKey`, `twitter.apiSecret`, `twitter.bearerToken` | Credentials for the Twitter/X integration. |
 | `youtube.enabled` | Set to `true` to load `/youtube`. |
@@ -61,7 +64,7 @@ Optional integrations are disabled in the template. Configure their credentials 
 
 ## Slash commands
 
-Commands are used in Discord by typing `/` and selecting the command. Except for `/help` and `/info`, the management commands are restricted to server administrators. `/kickchannel` requires the caller to have **Kick Members**. Optional social commands are available only when their integration is enabled in `config.json`.
+Commands are used in Discord by typing `/` and selecting the command. Except for `/help` and `/info`, the management commands are restricted to server administrators. `/kickchannel` requires the caller to have **Kick Members**, and `/modlogs` requires **Manage Server**. Optional social commands are available only when their integration is enabled in `config.json`.
 
 ### General
 
@@ -112,6 +115,18 @@ The command is registered for managing an age-role panel and exposes these actio
 
 ### Tickets and moderation
 
+#### Moderator log dashboard
+
+The web dashboard is available at `https://dashboard.slushie.live` by default, and `/info` includes a **Moderator dashboard** link button. Configure `dashboard.clientId` and `dashboard.clientSecret` with a Discord OAuth2 application, or set `DISCORD_OAUTH_CLIENT_ID` and `DISCORD_OAUTH_CLIENT_SECRET` environment variables. Add the exact callback URL to the application's OAuth2 redirect URLs and enable the `identify` and `guilds` scopes. The default callback is `https://dashboard.slushie.live/callback`. For local development, set `dashboard.publicUrl` to `http://localhost:52320`; for a different public host, change `dashboard.publicUrl` (or `DASHBOARD_PUBLIC_URL`) and, if needed, set `dashboard.redirectUri` (or `DISCORD_OAUTH_REDIRECT_URI`) to match it exactly in the Discord application settings.
+
+Point the DNS record for the public hostname to the server and configure its HTTPS reverse proxy to forward requests to the bot's local HTTP listener (`127.0.0.1:<uploader.httpPort>`). The bot's HTTP listener does not provision DNS records or TLS certificates.
+
+Users must sign in with Discord and have the **Administrator** permission in a server where this bot is active. The dashboard rechecks their server permissions with Discord at least every 30 seconds and only returns logs for authorized servers. It provides server and operation filters, pagination, and the complete JSON payload for each log entry.
+
+The dashboard also has **Ticket attachments** and **Tickets** tabs. It lists attachments from open tickets and saved closed-ticket transcripts, and provides access to each indexed transcript. When a ticket closes, the bot saves server-scoped metadata beside its HTML transcript so the dashboard can safely associate it with the correct server. Transcript files created before this metadata was added cannot be assigned to a server and are not listed. Attachment metadata remains visible when the corresponding file has expired; with the default uploader settings, the file itself is automatically deleted after 30 days.
+
+All operations sent to the moderator log system are persisted to `bot/data/main.db`, even when no `/modlogs` channel is configured or its channel is unavailable. Stored details include Discord user/member, server and channel snapshots, operation metadata, message content and attachments where available, and before/after state for message edits. Interaction option values are stored in the JSON record. Treat this database as sensitive, restrict access to its backups, and use HTTPS when exposing the dashboard publicly. Dashboard sessions are held in memory and expire after 12 hours; restarting the bot signs users out. Log entries currently have no automatic retention limit.
+
 #### `/ticket action:<Setup|Send in channel>`
 
 Configures or publishes the ticket-opening panel.
@@ -127,6 +142,12 @@ When a user opens a ticket, the bot creates a private text channel under a `tick
 Turns the current channel into a kick channel. When enabling it, provide `message` for the text shown in the warning embed. A user who posts in that channel is kicked, and the bot attempts to delete that user's messages from the server's text channels. The embed button shows the kick history in an ephemeral (private) response, with pagination.
 
 The bot needs **Kick Members** to kick users and **View Channel** plus **Manage Messages** in the kick channel and the other channels whose message history should be cleaned. It can only remove messages from channels it can access and manage.
+
+#### `/modlogs action:<Set this channel|Disable moderator logs>`
+
+Run **Set this channel** in the text channel where moderators should receive log embeds. The bot needs **View Channel**, **Send Messages**, and **Embed Links** there. The setting is saved per server in the bot database. Choose **Disable moderator logs** to stop sending logs.
+
+The log channel receives server interactions, member joins and leaves, nickname and role changes, voice-channel joins, leaves and moves, successful verification, kicks performed by the kick-channel feature, and deleted or edited messages. Message embeds include the author, channel, message ID, and content when available; long content is truncated, and uncached messages are marked accordingly. JSON records also include interaction option values and detailed user, member, channel, message, and operation snapshots where available.
 
 ### Cross-server roles
 
@@ -200,6 +221,7 @@ Available when `youtube.enabled` is `true`.
     │   ├── kickchannel.js     # Kick channel, message cleanup, and kick history
     │   ├── multiroles.js      # Multi-role selector panels
     │   ├── nickname.js        # Bot nickname management
+    │   ├── modlogs.js         # Moderator log channel configuration
     │   ├── roles.js           # Single-role selector panels
     │   ├── syncserver.js      # Cross-server role synchronization
     │   ├── ticket.js          # Ticket setup, opening, and closing
@@ -215,11 +237,14 @@ Available when `youtube.enabled` is `true`.
     │   ├── httpDownload.js    # HTTP download helper
     │   ├── logger.js          # Log setup
     │   ├── makehtml.js        # Ticket transcript HTML generation
+    │   ├── moderationDashboard.js # OAuth-protected moderator log dashboard
+    │   ├── moderationLogs.js  # Shared moderator log embed sender and event snapshots
     │   ├── timeout.js         # Interaction cooldown helper
     │   ├── twitch.js          # Twitch API client
     │   ├── twitter.js         # Twitter/X API client
     │   ├── uploader.js        # Attachment storage and serving
     │   └── youtube.js         # YouTube lookup and embed helpers
+    ├── dashboard/             # Moderator log dashboard interface
     ├── images/                # Static images used by integrations
     └── data/                  # Runtime data: SQLite DB, attachments, logs, transcripts
 ```

@@ -156,6 +156,8 @@ class SQL {
                     { name: "edited", type: "TEXT" },
                     { name: "messageId", type: "TEXT" }
                 ]);
+                await this._run("CREATE INDEX IF NOT EXISTS idx_tickets_guild ON tickets (guildId)");
+                await this._run("CREATE INDEX IF NOT EXISTS idx_ticketMessages_ticket_type ON ticketMessages (ticketId, messageType)");
                 // other tables
                 await this._run("CREATE TABLE IF NOT EXISTS nicknames (guildId TEXT, nickname TEXT)");
                 await this._ensureColumns("nicknames", [
@@ -178,6 +180,9 @@ class SQL {
                 ]);
                 await this._run("CREATE TABLE IF NOT EXISTS kickChannelConfig (guildId TEXT PRIMARY KEY, channelId TEXT NOT NULL, messageId TEXT NOT NULL, description TEXT NOT NULL)");
                 await this._run("CREATE TABLE IF NOT EXISTS kickChannelKicks (id INTEGER PRIMARY KEY AUTOINCREMENT, guildId TEXT NOT NULL, userId TEXT NOT NULL, kickedAt INTEGER NOT NULL)");
+                await this._run("CREATE TABLE IF NOT EXISTS moderationLogConfig (guildId TEXT PRIMARY KEY, channelId TEXT NOT NULL)");
+                await this._run("CREATE TABLE IF NOT EXISTS moderationLogs (id INTEGER PRIMARY KEY AUTOINCREMENT, guildId TEXT NOT NULL, createdAt INTEGER NOT NULL, eventType TEXT NOT NULL, userId TEXT, channelId TEXT, payloadJson TEXT NOT NULL)");
+                await this._run("CREATE INDEX IF NOT EXISTS idx_moderationLogs_guild_created ON moderationLogs (guildId, createdAt DESC, id DESC)");
                 resolve();
             } catch (err) {
                 console.error(err);
@@ -188,7 +193,10 @@ class SQL {
 
     _run(stmt) {
         return new Promise((resolve, reject) => {
-            this.db.run(stmt, {}, () => { resolve() });
+            this.db.run(stmt, {}, (error) => {
+                if (error) return reject(error);
+                resolve();
+            });
         })
     }
 
@@ -520,6 +528,52 @@ class SQL {
                 else resolve(0);
             })
         })
+    }
+
+    getTicketsByGuild(guildId, { limit, offset }) {
+        return new Promise((resolve, reject) => {
+            this.db.all(
+                `SELECT t.id, t.guildId, t.channelId, t.ticketOwner, t.ticketId, t.ticketTitle, t.ticketDescription,
+                    (SELECT COUNT(*) FROM ticketMessages m WHERE m.ticketId = t.ticketId) AS messageCount,
+                    (SELECT COUNT(*) FROM ticketMessages m WHERE m.ticketId = t.ticketId AND m.messageType = 'attachment') AS attachmentCount
+                 FROM tickets t
+                 WHERE t.guildId = ?
+                 ORDER BY t.id DESC
+                 LIMIT ? OFFSET ?`,
+                [guildId, limit, offset],
+                (error, rows) => {
+                    if (error) return reject(error);
+                    resolve(rows);
+                }
+            );
+        });
+    }
+
+    countTicketsByGuild(guildId) {
+        return new Promise((resolve, reject) => {
+            this.db.get("SELECT COUNT(*) AS count FROM tickets WHERE guildId = ?", [guildId], (error, row) => {
+                if (error) return reject(error);
+                resolve(row.count);
+            });
+        });
+    }
+
+    getTicketAttachmentsByGuild(guildId) {
+        return new Promise((resolve, reject) => {
+            this.db.all(
+                `SELECT m.rowid AS id, m.ticketId, t.channelId, t.ticketOwner, t.ticketTitle,
+                    m.content, m.username, m.authorProfile, m.currentTime, m.orderDate
+                 FROM ticketMessages m
+                 JOIN tickets t ON t.ticketId = m.ticketId
+                 WHERE t.guildId = ? AND m.messageType = 'attachment'
+                 ORDER BY m.rowid DESC`,
+                [guildId],
+                (error, rows) => {
+                    if (error) return reject(error);
+                    resolve(rows);
+                }
+            );
+        });
     }
 
     deleteTicket(ticketId) {
@@ -1018,6 +1072,82 @@ class SQL {
             this.db.get("SELECT * FROM kickChannelConfig WHERE guildId = ?", [guildId], (err, row) => {
                 if (err) return reject(err);
                 resolve(row);
+            });
+        });
+    }
+
+    getModerationLogChannel(guildId) {
+        return new Promise((resolve, reject) => {
+            this.db.get("SELECT channelId FROM moderationLogConfig WHERE guildId = ?", [guildId], (err, row) => {
+                if (err) return reject(err);
+                resolve(row);
+            });
+        });
+    }
+
+    saveModerationLogChannel(guildId, channelId) {
+        return new Promise((resolve, reject) => {
+            this.db.run(
+                "INSERT OR REPLACE INTO moderationLogConfig (guildId, channelId) VALUES (?, ?)",
+                [guildId, channelId],
+                (err) => {
+                    if (err) return reject(err);
+                    resolve();
+                }
+            );
+        });
+    }
+
+    deleteModerationLogChannel(guildId) {
+        return new Promise((resolve, reject) => {
+            this.db.run("DELETE FROM moderationLogConfig WHERE guildId = ?", [guildId], (err) => {
+                if (err) return reject(err);
+                resolve();
+            });
+        });
+    }
+
+    addModerationLog(guildId, createdAt, eventType, userId, channelId, payload) {
+        return new Promise((resolve, reject) => {
+            this.db.run(
+                "INSERT INTO moderationLogs (guildId, createdAt, eventType, userId, channelId, payloadJson) VALUES (?, ?, ?, ?, ?, ?)",
+                [guildId, createdAt, eventType, userId || null, channelId || null, JSON.stringify(payload)],
+                function (err) {
+                    if (err) return reject(err);
+                    resolve(this.lastID);
+                }
+            );
+        });
+    }
+
+    getModerationLogs(guildId, { limit, offset, eventType }) {
+        return new Promise((resolve, reject) => {
+            const params = [guildId];
+            let query = "SELECT id, createdAt, eventType, userId, channelId, payloadJson FROM moderationLogs WHERE guildId = ?";
+            if (eventType) {
+                query += " AND eventType = ?";
+                params.push(eventType);
+            }
+            query += " ORDER BY createdAt DESC, id DESC LIMIT ? OFFSET ?";
+            params.push(limit, offset);
+            this.db.all(query, params, (err, rows) => {
+                if (err) return reject(err);
+                resolve(rows);
+            });
+        });
+    }
+
+    countModerationLogs(guildId, eventType) {
+        return new Promise((resolve, reject) => {
+            const params = [guildId];
+            let query = "SELECT COUNT(*) AS count FROM moderationLogs WHERE guildId = ?";
+            if (eventType) {
+                query += " AND eventType = ?";
+                params.push(eventType);
+            }
+            this.db.get(query, params, (err, row) => {
+                if (err) return reject(err);
+                resolve(row.count);
             });
         });
     }

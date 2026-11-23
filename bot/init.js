@@ -5,6 +5,15 @@ const { TwitchApi } = require("./modules/twitch.js");
 const { TwitterAPI } = require("./modules/twitter.js");
 const { YoutubeAPI } = require("./modules/youtube.js");
 const { Timeout } = require("./modules/timeout.js");
+const {
+    logInteraction,
+    logMemberJoin,
+    logMemberLeave,
+    logMemberUpdate,
+    logMessageDelete,
+    logMessageUpdate,
+    logVoiceStateUpdate
+} = require("./modules/moderationLogs.js");
 
 class BOT {
     constructor(client, guild, uploader, cron) {
@@ -31,6 +40,24 @@ class BOT {
 
     // main event handler for the current bot instance
     event(event, ...args) {
+        if (event === "command" || event === "button" || event === "select" ||
+            event === "modal" || event === "roleSelect" || event === "channelSelect" ||
+            event === "context") {
+            logInteraction(args[0], this.database);
+        } else if (event === "userJoin") {
+            logMemberJoin(args[0], this.database);
+        } else if (event === "userLeave") {
+            logMemberLeave(args[0], this.database);
+        } else if (event === "userUpdate") {
+            logMemberUpdate(args[0], args[1], this.database);
+        } else if (event === "messageDelete") {
+            logMessageDelete(args[0], this.database);
+        } else if (event === "messageUpdate") {
+            logMessageUpdate(args[0], args[1], this.database);
+        } else if (event === "voiceStateUpdate") {
+            logVoiceStateUpdate(args[0], args[1], this.database);
+        }
+
         if (event === "command") {
             // check if the command exists and execute it
             this.commands.forEach((command, string) => {
@@ -53,7 +80,7 @@ class BOT {
         } else if (event === "message" || event === "messageUpdate") {
             const message = args[0];
             const newMessage = args[1];
-            if (message.author.bot) return;
+            if (!message.author || message.author.bot) return;
             // send a message event to all the commands
             this.commands.forEach((command, string) => {
                 if (command.module.message)

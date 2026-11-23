@@ -161,6 +161,42 @@ class MakeHTML {
 
         const filename =  ticket.ticketId + ".html";
         fs.writeFileSync(this.config.tickets.folder + "/" + filename, this.html);
+        if (ticket && ticket.guildId) {
+            const attachments = (messages || [])
+                .filter(message => message.messageType === "attachment")
+                .map(message => {
+                    try {
+                        const attachment = JSON.parse(message.content);
+                        return {
+                            ...attachment,
+                            username: message.username,
+                            authorProfile: message.authorProfile,
+                            currentTime: message.currentTime,
+                            orderDate: message.orderDate
+                        };
+                    } catch (error) {
+                        console.error(`Could not read ticket ${ticket.ticketId} attachment metadata:`, error);
+                        return null;
+                    }
+                })
+                .filter(Boolean);
+            const metadata = {
+                guildId: ticket.guildId,
+                channelId: ticket.channelId,
+                ticketOwner: ticket.ticketOwner,
+                ticketId: ticket.ticketId,
+                channelName: ticket.channelName,
+                ticketTitle: ticket.title,
+                ticketDescription: ticket.description,
+                closedAt: ticket.closedAt || new Date().toISOString(),
+                messageCount: (messages || []).length,
+                attachments
+            };
+            fs.writeFileSync(
+                this.config.tickets.folder + "/" + ticket.ticketId + ".json",
+                JSON.stringify(metadata)
+            );
+        }
         return filename;
     }
 }

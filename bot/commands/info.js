@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, ActionRowBuilder, MessageFlags } = require("discord.js");
 const { Button } = require("./elements/button.js");
 const { Timeout } = require("../modules/timeout.js");
+const { getDashboardUrl } = require("../modules/moderationDashboard.js");
 const timeout = new Timeout();
 const config = require("../../config.json");
 
@@ -89,10 +90,17 @@ async function execute(interaction, database, client) {
         .setURL("https://github.com/zThundy")
         .setLabel("Profile")
         .buildNoRow();
+
+    const dashboard = new Button()
+        .setStyle("link")
+        .setURL(getDashboardUrl(config))
+        .setLabel("Moderator dashboard")
+        .buildNoRow();
     
     const row = new ActionRowBuilder()
         .addComponents(repo)
-        .addComponents(profile);
+        .addComponents(profile)
+        .addComponents(dashboard);
     
     interaction.reply({
         embeds: [embed],

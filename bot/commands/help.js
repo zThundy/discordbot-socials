@@ -51,6 +51,10 @@ async function execute(interaction, _, _, config) {
                 value: "You can use this command in a channel to configure the 'Honeypot'. Every user that sends a message in that channel, will be kicked from the server and all messages deleted.",
             },
             {
+                name: "📜 Moderator logs (/modlogs)",
+                value: "Configure the current channel to receive moderator logs, or disable logging for this server."
+            },
+            {
                 name: "📜 Sync servers (/syncserver)",
                 value: "You can use this command to configure a sync between multiple discord servers. This configuration will sync roles between servers so that users will have same roles in different servers.",
             },

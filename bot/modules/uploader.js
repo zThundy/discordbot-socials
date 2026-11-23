@@ -15,8 +15,10 @@ class Uploader {
         this.express = require("express");
         this.app = this.express();
 
-        this.app.listen(this.port, () => {
-            console.log("<EXPRESS> Listening for web request on port " + this.port);
+        this.app.set("trust proxy", 1)
+
+        this.app.listen(this.port, "127.0.0.1", () => {
+            console.log("<EXPRESS> Listening for web request on 127.0.0.1:" + this.port);
         });
 
         // check if home folder exists, if not create it
@@ -32,12 +34,11 @@ class Uploader {
 
     addListeners() {
         // listen for get request for files in folder
-        this.app.get("/", (req, res) => {
+        this.app.get("/", (req, res, next) => {
             // log ip address
             const ip = (req.headers['x-forwarded-for'] || req.connection.remoteAddress).replace("::ffff:", "");
             console.log("<EXPRESS> Request from " + ip);
-            // if no key is provided, return 500
-            if (!req.query.key) return res.status(500).send().end();
+            if (!req.query.key) return next();
             const key = String(req.query.key);
             if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:\.[a-z0-9]{1,10})?$/i.test(key)) {
                 return res.status(400).send().end();
@@ -62,12 +63,21 @@ class Uploader {
         return this;
     }
 
+    // async downloadAttachment(url, filename, contentType) {
+    //     const uuid = this.uuidv4();
+    //     const extension = this.getFileExtension(filename, url, contentType);
+    //     const key = uuid + extension;
+    //     await downloadFile(url, path.join(this.homePath, key));
+    //     return "http://" + this.ip + ":" + this.port + "/?key=" + encodeURIComponent(key);
+    // }
+
     async downloadAttachment(url, filename, contentType) {
         const uuid = this.uuidv4();
         const extension = this.getFileExtension(filename, url, contentType);
         const key = uuid + extension;
         await downloadFile(url, path.join(this.homePath, key));
-        return "http://" + this.ip + ":" + this.port + "/?key=" + encodeURIComponent(key);
+        const baseUrl = (this.publicUrl || "https://dashboard.slushie.live").replace(/\/+$/, "");
+        return `${baseUrl}/?key=${encodeURIComponent(key)}`;
     }
 
     getFileExtension(filename, url, contentType) {

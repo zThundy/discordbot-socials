@@ -7,6 +7,13 @@ const {
     PermissionsBitField,
     SlashCommandBuilder
 } = require("discord.js");
+const {
+    sendModerationLog,
+    snapshotUser,
+    snapshotMember,
+    snapshotChannel,
+    snapshotMessage
+} = require("../modules/moderationLogs.js");
 
 const internalId = "kickchannel_v1";
 const pageSize = 20;
@@ -259,6 +266,31 @@ async function message(event, message, _newMessage, { database }) {
                 `Could not delete all messages from ${message.author.id}: ` +
                 `${deletion.failed} deletion failures, ${deletion.skipped} inaccessible channels.`
             );
+        }
+        if (kicked) {
+            sendModerationLog(message.guild, database, {
+                title: "Member kicked",
+                description: `<@${message.author.id}> was kicked after sending a message in the configured kick channel.`,
+                color: 0xE67E22,
+                fields: [
+                    { name: "Channel", value: `<#${message.channel.id}>`, inline: true },
+                    { name: "Messages deleted", value: String(deletion.deleted), inline: true }
+                ],
+                eventType: "member.kick",
+                details: {
+                    actor: snapshotUser(message.client.user),
+                    target: snapshotMember(message.member) || snapshotUser(message.author),
+                    channel: snapshotChannel(message.channel),
+                    triggeringMessage: snapshotMessage(message),
+                    outcome: {
+                        kicked: true,
+                        deletedMessages: deletion.deleted,
+                        failedMessageDeletions: deletion.failed,
+                        inaccessibleChannels: deletion.skipped
+                    },
+                    reason: "Message sent in the configured kick channel"
+                }
+            });
         }
 
     } catch (error) {

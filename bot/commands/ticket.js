@@ -715,6 +715,10 @@ async function interaction(interaction, database, _, config) {
                             title: ticket.ticketTitle,
                             description: ticket.ticketDescription,
                             ticketId,
+                            guildId: guild.id,
+                            channelId: channel.id,
+                            ticketOwner: ticket.ticketOwner,
+                            closedAt: new Date().toISOString(),
                             edited: ticket.edited,
                             avatar
                         });

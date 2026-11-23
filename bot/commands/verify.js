@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, PermissionsBitField, MessageFlags } = require("discord.js");
 const { Button } = require("./elements/button.js");
 const { Timeout } = require("../modules/timeout.js");
+const { sendModerationLog, snapshotUser, snapshotMember, snapshotChannel } = require("../modules/moderationLogs.js");
 const timeout = new Timeout();
 
 // create a random numberic id
@@ -152,6 +153,24 @@ async function interaction(interaction, database) {
             } else {
                 member.roles.add(role)
                     .then(() => {
+                        sendModerationLog(guild, database, {
+                            title: "Member verified",
+                            description: `<@${member.id}> completed server verification.`,
+                            fields: [{ name: "Role assigned", value: `<@&${role.id}>` }],
+                            eventType: "member.verified",
+                            details: {
+                                actor: snapshotUser(interaction.user),
+                                target: snapshotMember(member),
+                                channel: snapshotChannel(interaction.channel),
+                                role: {
+                                    id: role.id,
+                                    name: role.name,
+                                    color: role.hexColor,
+                                    position: role.position,
+                                    managed: role.managed
+                                }
+                            }
+                        });
                         interaction.reply({ content: "You have been verified", flags: MessageFlags.Ephemeral });
                     })
                     .catch((err) => {

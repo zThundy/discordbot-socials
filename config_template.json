@@ -15,6 +15,12 @@
         "deleteFilesAfterDays": 30,
         "httpPort": 52320
     },
+    "dashboard": {
+        "publicUrl": "https://example.com",
+        "clientId": "",
+        "clientSecret": "",
+        "redirectUri": "https://example.com/callback"
+    },
     "twitter": {
         "enabled": false,
         "apiKey": "TWITTER_API_KEY",

@@ -1,4 +1,4 @@
-const { Client, Events, GatewayIntentBits, Collection, MessageFlags } = require('discord.js');
+const { Client, Events, GatewayIntentBits, Collection, MessageFlags, Partials } = require('discord.js');
 const { Logger } = require("./bot/modules/logger.js");
 new Logger();
 
@@ -17,15 +17,19 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.GuildVoiceStates,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildMessageReactions,
         GatewayIntentBits.GuildInvites
-    ]
+    ],
+    partials: [Partials.Message, Partials.Channel]
 });
 const config = require('./config.json');
 
 const bots = new Collection();
 const { BOT } = require("./bot/init.js");
+const { ModerationDashboard } = require("./bot/modules/moderationDashboard.js");
+new ModerationDashboard(uploader.app, client, bots, config);
 
 client.on(Events.ClientReady, () => {
     // init bots
@@ -65,10 +69,39 @@ client.on(Events.GuildMemberAdd, (member) => {
     }
 });
 
+client.on(Events.GuildMemberRemove, (member) => {
+    try {
+        const bot = bots[member.guild.id];
+        if (bot) bot.event("userLeave", member);
+    } catch (err) {
+        console.error(err);
+    }
+});
+
+client.on(Events.VoiceStateUpdate, (oldState, newState) => {
+    try {
+        const guildId = (newState.guild && newState.guild.id) || (oldState.guild && oldState.guild.id);
+        const bot = bots[guildId];
+        if (bot) bot.event("voiceStateUpdate", oldState, newState);
+    } catch (err) {
+        console.error(err);
+    }
+});
+
 client.on(Events.MessageUpdate, (oldM, newM) => {
     try {
-        const bot = bots[oldM.guild.id];
+        const guildId = newM.guildId || oldM.guildId;
+        const bot = guildId && bots[guildId];
         if (bot) bot.event("messageUpdate", oldM, newM);
+    } catch (err) {
+        console.error(err);
+    }
+});
+
+client.on(Events.MessageDelete, (message) => {
+    try {
+        const bot = message.guildId && bots[message.guildId];
+        if (bot) bot.event("messageDelete", message);
     } catch (err) {
         console.error(err);
     }

@@ -1,0 +1,1056 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Slushie moderator dashboard</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #0c0e14;
+            color: #eef0f7;
+            font-synthesis: none;
+            --surface: #141721;
+            --surface-raised: #191d29;
+            --surface-hover: #222738;
+            --border: #292e3d;
+            --muted: #9da5ba;
+            --accent: #a78bfa;
+            --accent-soft: #32284c;
+        }
+        * { box-sizing: border-box; }
+        body {
+            min-width: 320px;
+            min-height: 100vh;
+            margin: 0;
+            background:
+                radial-gradient(ellipse at 50% -25%, #292149 0, transparent 56%),
+                #0c0e14;
+        }
+        button, input, select { font: inherit; }
+        button { color: inherit; }
+        .topbar {
+            display: flex;
+            min-height: 76px;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            padding: 14px clamp(16px, 3vw, 48px);
+            border-bottom: 1px solid var(--border);
+            background: #10121aeF;
+        }
+        .brand, .account, .server-picker-button, .tabs, .tab, .toolbar, .pagination,
+        .section-heading, .ticket-actions, .attachment-meta, .detail-heading {
+            display: flex;
+            align-items: center;
+        }
+        .brand { gap: 12px; min-width: 0; }
+        .brand-mark {
+            display: grid;
+            width: 42px;
+            height: 42px;
+            flex: 0 0 42px;
+            place-items: center;
+            border: 1px solid #55427d;
+            border-radius: 14px;
+            background: linear-gradient(145deg, #a78bfa, #6d4cb4);
+            color: white;
+            font-size: 19px;
+            font-weight: 800;
+            box-shadow: 0 6px 24px #8b5cf633;
+        }
+        .brand-name { font-size: 16px; font-weight: 750; letter-spacing: -.02em; }
+        .brand-caption { margin-top: 3px; color: var(--muted); font-size: 12px; }
+        .account { gap: 11px; }
+        .account-avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: #34394a;
+            object-fit: cover;
+        }
+        .account-name {
+            max-width: 200px;
+            overflow: hidden;
+            color: #d7dbea;
+            font-size: 13px;
+            font-weight: 650;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .signout, .secondary-button, .primary-button, .icon-button, .tab, .server-picker-button {
+            border: 1px solid var(--border);
+            border-radius: 9px;
+            background: var(--surface-raised);
+            text-decoration: none;
+            cursor: pointer;
+            transition: background .15s ease, border-color .15s ease, transform .15s ease;
+        }
+        .signout { padding: 9px 13px; color: #e4e6ef; font-size: 13px; }
+        .signout:hover, .secondary-button:hover, .server-picker-button:hover { background: var(--surface-hover); border-color: #444b60; }
+        .page-shell { width: 100%; padding: 24px clamp(16px, 3vw, 48px) 48px; }
+        .workspace-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            margin-bottom: 22px;
+        }
+        .server-picker { position: relative; z-index: 4; }
+        .server-picker-button { min-width: 250px; min-height: 48px; gap: 11px; padding: 7px 12px; text-align: left; }
+        .server-icon, .guild-initial {
+            width: 32px;
+            height: 32px;
+            flex: 0 0 32px;
+            border-radius: 10px;
+            object-fit: cover;
+        }
+        .guild-initial {
+            display: grid;
+            place-items: center;
+            background: #32374a;
+            color: #d8d1ff;
+            font-size: 12px;
+            font-weight: 750;
+        }
+        .server-picker-copy { display: grid; flex: 1; gap: 2px; min-width: 0; }
+        .server-picker-label { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .09em; }
+        .server-picker-name { overflow: hidden; font-size: 13px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+        .chevron { color: var(--muted); font-size: 14px; }
+        .server-menu {
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 0;
+            width: min(320px, calc(100vw - 32px));
+            max-height: 340px;
+            overflow: auto;
+            padding: 6px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: #181b25;
+            box-shadow: 0 18px 55px #0009;
+        }
+        .server-option {
+            display: flex;
+            width: 100%;
+            align-items: center;
+            gap: 10px;
+            padding: 9px;
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            color: inherit;
+            text-align: left;
+            cursor: pointer;
+        }
+        .server-option:hover, .server-option[aria-selected="true"] { background: var(--surface-hover); }
+        .server-option-name { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+        .tabs {
+            width: max-content;
+            max-width: 100%;
+            gap: 5px;
+            padding: 5px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: #12151e;
+        }
+        .tab { gap: 8px; padding: 10px 15px; border-color: transparent; background: transparent; color: var(--muted); font-size: 13px; font-weight: 650; white-space: nowrap; }
+        .tab:hover { background: var(--surface-hover); color: #fff; }
+        .tab.active { border-color: #4b3b6b; background: var(--accent-soft); color: #ded2ff; }
+        .tab-symbol { font-size: 15px; }
+        .panel { min-width: 0; }
+        .section-heading { justify-content: space-between; gap: 16px; margin: 12px 0 18px; }
+        .section-heading h1 { margin: 0; font-size: clamp(22px, 3vw, 30px); letter-spacing: -.035em; }
+        .section-heading p { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+        .toolbar { align-items: flex-end; flex-wrap: wrap; gap: 11px; margin-bottom: 16px; }
+        label { display: grid; gap: 6px; color: var(--muted); font-size: 11px; font-weight: 650; }
+        select, input {
+            min-width: 170px;
+            min-height: 40px;
+            padding: 8px 11px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            outline: 0;
+            background: var(--surface);
+            color: inherit;
+        }
+        input { min-width: 240px; }
+        select:focus, input:focus { border-color: #8065c5; box-shadow: 0 0 0 3px #8b5cf622; }
+        .secondary-button, .primary-button, .icon-button { min-height: 40px; padding: 8px 13px; font-size: 12px; font-weight: 650; }
+        .primary-button { border-color: #8065c5; background: #7152ad; color: #fff; }
+        .primary-button:hover { background: #8063bf; }
+        .icon-button { min-height: 32px; padding: 6px 10px; color: #d3c4ff; }
+        .status { min-height: 24px; margin: 4px 0 12px; color: var(--muted); font-size: 12px; }
+        .status.error { color: #ff9090; }
+        .table-wrap {
+            overflow: auto;
+            border: 1px solid var(--border);
+            border-radius: 13px;
+            background: #12151d;
+            box-shadow: 0 12px 36px #0002;
+        }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 13px 15px; border-bottom: 1px solid #242837; text-align: left; vertical-align: top; }
+        th { position: sticky; top: 0; z-index: 1; background: #181b25; color: #aab1c4; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+        td { color: #dce0eb; font-size: 12px; }
+        tr:last-child td { border-bottom: 0; }
+        .operation { min-width: 160px; font-weight: 700; }
+        .event-trigger { cursor: pointer; color: #d3c4ff; }
+        .event-trigger:hover { text-decoration: underline; }
+        .muted { margin-top: 4px; color: var(--muted); font-size: 11px; }
+        .empty-cell { padding: 42px 18px; color: var(--muted); text-align: center; }
+        .pagination { justify-content: space-between; gap: 12px; margin-top: 14px; color: var(--muted); font-size: 12px; }
+        .pagination button:disabled { cursor: not-allowed; opacity: .4; }
+        .attachment-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
+        .attachment-card {
+            overflow: hidden;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: linear-gradient(150deg, #181b25, #12151d);
+        }
+        .attachment-preview {
+            display: grid;
+            width: 100%;
+            height: 170px;
+            place-items: center;
+            overflow: hidden;
+            background: #0b0d13;
+            color: #747d93;
+        }
+        .attachment-preview img { width: 100%; height: 100%; object-fit: contain; }
+        .file-placeholder { font-size: 32px; }
+        .attachment-copy { padding: 13px; }
+        .attachment-name { overflow: hidden; font-size: 13px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+        .attachment-subtitle { overflow: hidden; margin-top: 5px; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+        .attachment-meta { justify-content: space-between; gap: 12px; margin-top: 12px; color: var(--muted); font-size: 10px; }
+        .attachment-meta a, .text-link { color: #c5b4ff; text-decoration: none; }
+        .attachment-meta a:hover, .text-link:hover { text-decoration: underline; }
+        .badge { display: inline-flex; align-items: center; padding: 4px 8px; border: 1px solid #335747; border-radius: 99px; background: #1a3329; color: #8fe0b0; font-size: 10px; font-weight: 700; }
+        .badge.closed { border-color: #454152; background: #282632; color: #c4bbd8; }
+        .detail-screen {
+            position: fixed;
+            z-index: 10;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            padding: 20px clamp(16px, 3vw, 48px);
+            background: #0c0e14;
+        }
+        .detail-screen[hidden], [hidden] { display: none !important; }
+        .detail-heading { justify-content: space-between; gap: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+        .detail-heading h1 { overflow: hidden; margin: 0; font-size: 17px; text-overflow: ellipsis; white-space: nowrap; }
+        .detail-actions { display: flex; gap: 9px; }
+        .detail-content { min-height: 0; flex: 1; overflow: auto; margin: 18px 0 0; padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: #11141c; color: #d8dbea; font: 12px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+        .event-detail-content { display: grid; flex: 1; align-content: start; gap: 12px; overflow: auto; margin-top: 18px; }
+        .event-detail-card { padding: 16px; border: 1px solid var(--border); border-radius: 11px; background: #11141c; }
+        .event-detail-card h2 { margin: 0 0 12px; color: #c9b8ff; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+        .event-detail-row { display: grid; grid-template-columns: minmax(120px, 190px) minmax(0, 1fr); gap: 14px; padding: 9px 0; border-top: 1px solid #242837; }
+        .event-detail-label { color: var(--muted); font-size: 11px; font-weight: 650; }
+        .event-detail-value { color: #e2e5ef; font-size: 12px; overflow-wrap: anywhere; white-space: pre-wrap; }
+        .event-detail-value.multiline { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; line-height: 1.6; }
+        .ticket-download { color: #c5b4ff; font-weight: 650; text-decoration: none; }
+        .ticket-download:hover { text-decoration: underline; }
+        .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+        @media (max-width: 780px) {
+            .topbar { align-items: flex-start; }
+            .account-name { display: none; }
+            .workspace-bar { align-items: stretch; flex-direction: column; }
+            .server-picker-button { width: 100%; }
+            .tabs { width: 100%; overflow-x: auto; }
+            .tab { flex: 1 0 auto; justify-content: center; padding: 10px; }
+            .section-heading { align-items: flex-start; flex-direction: column; }
+            .toolbar { align-items: stretch; }
+            .toolbar label { flex: 1 1 100%; }
+            select, input { width: 100%; }
+            th, td { padding: 10px 9px; }
+        }
+        @media (max-width: 480px) {
+            .brand-caption { display: none; }
+            .topbar { gap: 10px; padding: 12px; }
+            .page-shell { padding: 18px 12px 32px; }
+            .account { gap: 7px; }
+            .signout { padding: 8px; }
+            .tab { font-size: 11px; }
+            .tab-symbol { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="brand">
+            <div class="brand-mark" aria-hidden="true">S</div>
+            <div>
+                <div class="brand-name">Slushie Control</div>
+                <div class="brand-caption">Moderator dashboard</div>
+            </div>
+        </div>
+        <div class="account">
+            <img id="user-avatar" class="account-avatar" alt="" hidden>
+            <span id="user-name" class="account-name">Discord account</span>
+            <a class="signout" href="/logout">Sign out</a>
+        </div>
+    </header>
+
+    <main class="page-shell">
+        <div class="workspace-bar">
+            <div class="server-picker">
+                <select id="guild" class="visually-hidden" tabindex="-1" aria-hidden="true"></select>
+                <button id="server-picker-button" class="server-picker-button" type="button" aria-haspopup="listbox" aria-expanded="false">
+                    <span id="server-initial" class="guild-initial">S</span>
+                    <img id="server-icon" class="server-icon" alt="" hidden>
+                    <span class="server-picker-copy">
+                        <span class="server-picker-label">Selected server</span>
+                        <span id="server-name" class="server-picker-name">Loading servers…</span>
+                    </span>
+                    <span class="chevron" aria-hidden="true">⌄</span>
+                </button>
+                <div id="server-menu" class="server-menu" role="listbox" aria-label="Select server" hidden></div>
+            </div>
+            <nav class="tabs" role="tablist" aria-label="Dashboard sections">
+                <button class="tab active" type="button" role="tab" aria-selected="true" data-tab="dashboard">
+                    <span class="tab-symbol" aria-hidden="true">▦</span>Dashboard
+                </button>
+                <button class="tab" type="button" role="tab" aria-selected="false" data-tab="attachments">
+                    <span class="tab-symbol" aria-hidden="true">⌑</span>Ticket attachments
+                </button>
+                <button class="tab" type="button" role="tab" aria-selected="false" data-tab="tickets">
+                    <span class="tab-symbol" aria-hidden="true">▤</span>Tickets
+                </button>
+            </nav>
+        </div>
+
+        <section id="dashboard-panel" class="panel" role="tabpanel">
+            <div class="section-heading">
+                <div>
+                    <h1>Moderation activity</h1>
+                    <p>Review server events and inspect the complete recorded data.</p>
+                </div>
+            </div>
+            <div class="toolbar">
+                <label>Operation
+                    <select id="event-type">
+                        <option value="">All operations</option>
+                        <option value="interaction">Interactions</option>
+                        <option value="member.join">Member joined</option>
+                        <option value="member.leave">Member left</option>
+                        <option value="member.update">Member updated</option>
+                        <option value="message.delete">Message deleted</option>
+                        <option value="message.update">Message updated</option>
+                        <option value="voice.join">Joined voice</option>
+                        <option value="voice.leave">Left voice</option>
+                        <option value="voice.move">Moved voice channel</option>
+                        <option value="member.kick">Member kicked</option>
+                        <option value="member.verified">Member verified</option>
+                    </select>
+                </label>
+                <label>Search this page
+                    <input id="search" type="search" placeholder="User, channel, operation">
+                </label>
+                <button id="refresh" class="secondary-button" type="button">Refresh</button>
+            </div>
+            <p id="dashboard-status" class="status" role="status">Loading servers…</p>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr><th>Date</th><th>Operation</th><th>User</th><th>Channel</th><th>Details</th></tr>
+                    </thead>
+                    <tbody id="logs"></tbody>
+                </table>
+            </div>
+            <div class="pagination">
+                <button id="logs-previous" class="secondary-button" type="button">Previous</button>
+                <span id="logs-page">Page 1</span>
+                <button id="logs-next" class="secondary-button" type="button">Next</button>
+            </div>
+        </section>
+
+        <section id="attachments-panel" class="panel" role="tabpanel" hidden>
+            <div class="section-heading">
+                <div>
+                    <h1>Ticket attachments</h1>
+                    <p>Files and metadata saved from this server's ticket conversations.</p>
+                </div>
+                <button id="attachments-refresh" class="secondary-button" type="button">Refresh</button>
+            </div>
+            <p id="attachments-status" class="status" role="status">Choose a server to load attachments.</p>
+            <div id="attachment-grid" class="attachment-grid"></div>
+            <div class="pagination">
+                <button id="attachments-previous" class="secondary-button" type="button">Previous</button>
+                <span id="attachments-page">Page 1</span>
+                <button id="attachments-next" class="secondary-button" type="button">Next</button>
+            </div>
+        </section>
+
+        <section id="tickets-panel" class="panel" role="tabpanel" hidden>
+            <div class="section-heading">
+                <div>
+                    <h1>Tickets</h1>
+                    <p>Open tickets and saved closed-ticket transcripts for this server.</p>
+                </div>
+                <button id="tickets-refresh" class="secondary-button" type="button">Refresh</button>
+            </div>
+            <p id="tickets-status" class="status" role="status">Choose a server to load tickets.</p>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr><th>Status</th><th>Ticket</th><th>Owner</th><th>Channel</th><th>Messages / files</th><th>Closed</th><th>Transcript</th></tr>
+                    </thead>
+                    <tbody id="tickets"></tbody>
+                </table>
+            </div>
+            <div class="pagination">
+                <button id="tickets-previous" class="secondary-button" type="button">Previous</button>
+                <span id="tickets-page">Page 1</span>
+                <button id="tickets-next" class="secondary-button" type="button">Next</button>
+            </div>
+        </section>
+    </main>
+
+    <section id="json-screen" class="detail-screen" role="dialog" aria-modal="true" aria-labelledby="json-title" hidden>
+        <div class="detail-heading">
+            <h1 id="json-title">Log details</h1>
+            <div class="detail-actions">
+                <button id="show-json" class="secondary-button" type="button">View full JSON</button>
+                <button id="json-back" class="secondary-button" type="button">Back to dashboard</button>
+            </div>
+        </div>
+        <div id="event-detail-content" class="event-detail-content"></div>
+        <pre id="json-content" class="detail-content"></pre>
+    </section>
+
+    <script>
+        const guildSelect = document.getElementById("guild");
+        const eventSelect = document.getElementById("event-type");
+        const searchInput = document.getElementById("search");
+        const logBody = document.getElementById("logs");
+        const detailScreen = document.getElementById("json-screen");
+        const pageState = { dashboard: 1, attachments: 1, tickets: 1 };
+        let totalPages = { dashboard: 1, attachments: 1, tickets: 1 };
+        let loadedLogs = [];
+        let activeTab = "dashboard";
+        let currentEventPayload = null;
+
+        function setStatus(id, message, isError = false) {
+            const element = document.getElementById(id);
+            element.textContent = message;
+            element.classList.toggle("error", isError);
+        }
+
+        function appendCell(row, value, className) {
+            const cell = document.createElement("td");
+            cell.textContent = value === undefined || value === null || value === "" ? "—" : value;
+            if (className) cell.className = className;
+            row.appendChild(cell);
+            return cell;
+        }
+
+        function formatDate(value) {
+            const date = new Date(value);
+            return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString();
+        }
+
+        function getUser(payload) {
+            const details = payload.operation && payload.operation.details || {};
+            const target = details.target;
+            return target && (target.user || target) || details.user || details.member && details.member.user || null;
+        }
+
+        function getChannel(log) {
+            const details = log.payload.operation && log.payload.operation.details || {};
+            const channel = details.channel;
+            if (channel) return channel.name ? `${channel.name} (${channel.id})` : channel.id;
+            if (details.to && details.to.id) return details.to.name || details.to.id;
+            return log.channelId || "—";
+        }
+
+        function addDetailCard(container, title, values) {
+            const entries = Object.entries(values).filter(([, value]) =>
+                value !== undefined && value !== null && value !== ""
+            );
+            if (!entries.length) return;
+            const card = document.createElement("section");
+            card.className = "event-detail-card";
+            const heading = document.createElement("h2");
+            heading.textContent = title;
+            card.appendChild(heading);
+            entries.forEach(([label, value]) => {
+                const row = document.createElement("div");
+                row.className = "event-detail-row";
+                const key = document.createElement("div");
+                key.className = "event-detail-label";
+                key.textContent = label;
+                const content = document.createElement("div");
+                content.className = "event-detail-value";
+                if (typeof value !== "string") {
+                    value = Array.isArray(value) ? value.join(", ") : JSON.stringify(value, null, 2);
+                }
+                content.textContent = value;
+                if (value.includes("\n")) content.classList.add("multiline");
+                row.append(key, content);
+                card.appendChild(row);
+            });
+            container.appendChild(card);
+        }
+
+        function formatUser(user) {
+            if (!user) return "";
+            const name = user.globalName || user.displayName || user.username || user.tag || "Unknown";
+            return `${name}${user.id ? ` (${user.id})` : ""}`;
+        }
+
+        function formatRoles(roles) {
+            if (!Array.isArray(roles)) return "";
+            return roles.map((role) => role.name ? `${role.name} (${role.id})` : role.id).filter(Boolean).join("\n");
+        }
+
+        function showEventDetails(log) {
+            const payload = log.payload || {};
+            const operation = payload.operation || {};
+            const details = operation.details || {};
+            currentEventPayload = payload;
+            document.getElementById("json-title").textContent = operation.title || log.eventType || "Event details";
+
+            const content = document.getElementById("event-detail-content");
+            content.replaceChildren();
+            content.hidden = false;
+            document.getElementById("json-content").hidden = true;
+            document.getElementById("show-json").hidden = false;
+
+            addDetailCard(content, "Event", {
+                Operation: operation.title || log.eventType,
+                Description: operation.description,
+                Date: formatDate(log.createdAt),
+                Server: payload.guild && `${payload.guild.name || "Unknown"} (${payload.guild.id || ""})`,
+                "Channel ID": log.channelId || details.channel && details.channel.id
+            });
+
+            const target = details.target || details.user || details.member && details.member.user;
+            if (target) {
+                const user = target.user || target;
+                addDetailCard(content, "User", {
+                    User: formatUser(user),
+                    "Nickname / display name": target.nickname || target.displayName,
+                    "Account created": user.createdAt,
+                    "Joined server": target.joinedAt,
+                    "Timed out until": target.communicationDisabledUntil,
+                    Bot: user.bot === undefined ? "" : String(user.bot),
+                    "User ID": user.id
+                });
+            }
+
+            if (details.message) {
+                addDetailCard(content, "Message", {
+                    Author: formatUser(details.message.author),
+                    Channel: details.message.channel && `${details.message.channel.name || "Channel"} (${details.message.channel.id || ""})`,
+                    "Message ID": details.message.id,
+                    Content: details.message.content,
+                    "Created at": details.message.createdAt,
+                    "Edited at": details.message.editedAt,
+                    Attachments: (details.message.attachments || []).map((attachment) =>
+                        `${attachment.name || "Attachment"}${attachment.url ? ` — ${attachment.url}` : ""}`
+                    ),
+                    Embeds: (details.message.embeds || []).map((embed) => embed.title || embed.url || "Embedded content")
+                });
+            }
+
+            if (details.before || details.after) {
+                const before = details.before || {};
+                const after = details.after || {};
+                addDetailCard(content, "Message before edit", {
+                    Content: before.content,
+                    "Edited at": before.editedAt,
+                    Attachments: (before.attachments || []).map((attachment) => attachment.name || attachment.url)
+                });
+                addDetailCard(content, "Message after edit", {
+                    Content: after.content,
+                    "Edited at": after.editedAt,
+                    Attachments: (after.attachments || []).map((attachment) => attachment.name || attachment.url)
+                });
+            }
+
+            if (details.changes) {
+                const changes = details.changes;
+                const previous = details.previous || {};
+                const current = details.target || {};
+                addDetailCard(content, "Member changes", {
+                    "Nickname before": changes.nickname && changes.nickname.before,
+                    "Nickname after": changes.nickname && changes.nickname.after,
+                    "Roles before": formatRoles(previous.roles),
+                    "Roles after": formatRoles(current.roles),
+                    "Roles added": (changes.rolesAdded || []).map((role) => `${role.name || "Role"} (${role.id})`),
+                    "Roles removed": (changes.rolesRemoved || []).map((role) => `${role.name || "Role"} (${role.id})`)
+                });
+            }
+
+            if (details.from || details.to) {
+                addDetailCard(content, "Voice channel", {
+                    From: details.from && `${details.from.name || "Voice channel"} (${details.from.id})`,
+                    To: details.to && `${details.to.name || "Voice channel"} (${details.to.id})`
+                });
+            }
+
+            if (details.interaction) {
+                addDetailCard(content, "Interaction", {
+                    Type: details.interaction.type,
+                    Command: details.interaction.commandName,
+                    "Custom ID": details.interaction.customId,
+                    Options: details.interaction.options
+                });
+            }
+
+            if (Array.isArray(operation.fields)) {
+                addDetailCard(content, "Recorded details", Object.fromEntries(
+                    operation.fields.map((field) => [field.name, field.value])
+                ));
+            }
+
+            if (!content.childElementCount) {
+                addDetailCard(content, "Event data", { Details: "No additional event details were recorded." });
+            }
+            detailScreen.hidden = false;
+            document.getElementById("json-back").focus();
+        }
+
+        function showJson() {
+            if (!currentEventPayload) return;
+            document.getElementById("event-detail-content").hidden = true;
+            const jsonContent = document.getElementById("json-content");
+            jsonContent.textContent = JSON.stringify(currentEventPayload, null, 2);
+            jsonContent.hidden = false;
+            document.getElementById("show-json").hidden = true;
+        }
+
+        function renderLogs() {
+            logBody.replaceChildren();
+            const query = searchInput.value.trim().toLowerCase();
+            const visible = loadedLogs.filter((log) => {
+                if (!query) return true;
+                const user = getUser(log.payload);
+                const haystack = [
+                    log.eventType,
+                    log.payload.operation && log.payload.operation.title,
+                    log.channelId,
+                    user && user.username,
+                    user && user.globalName,
+                    user && user.tag,
+                    user && user.id
+                ].filter(Boolean).join(" ").toLowerCase();
+                return haystack.includes(query);
+            });
+
+            if (!visible.length) {
+                const row = document.createElement("tr");
+                const cell = appendCell(row, loadedLogs.length ? "No logs match this search." : "No logs found.", "empty-cell");
+                cell.colSpan = 5;
+                logBody.appendChild(row);
+                return;
+            }
+
+            visible.forEach((log) => {
+                const row = document.createElement("tr");
+                const payload = log.payload || {};
+                const operation = payload.operation || {};
+                const user = getUser(payload);
+                appendCell(row, formatDate(log.createdAt));
+                const operationCell = appendCell(row, operation.title || log.eventType, "operation");
+                operationCell.classList.add("event-trigger");
+                operationCell.setAttribute("role", "button");
+                operationCell.tabIndex = 0;
+                operationCell.setAttribute("aria-label", `View details for ${operation.title || log.eventType}`);
+                operationCell.addEventListener("click", () => showEventDetails(log));
+                operationCell.addEventListener("keydown", (event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        showEventDetails(log);
+                    }
+                });
+                if (operation.description) {
+                    const description = document.createElement("div");
+                    description.className = "muted";
+                    description.textContent = operation.description;
+                    operationCell.appendChild(description);
+                }
+                appendCell(row, user
+                    ? `${user.globalName || user.username || user.tag || "Unknown"} (${user.id || log.userId || "unknown"})`
+                    : log.userId || "Unknown");
+                appendCell(row, getChannel(log));
+                const detailsCell = document.createElement("td");
+                const button = document.createElement("button");
+                button.className = "icon-button";
+                button.type = "button";
+                button.textContent = "View details";
+                button.addEventListener("click", () => showEventDetails(log));
+                detailsCell.appendChild(button);
+                row.appendChild(detailsCell);
+                logBody.appendChild(row);
+            });
+        }
+
+        function updatePagination(name, data, prefix) {
+            totalPages[name] = data.pages;
+            document.getElementById(`${prefix}-page`).textContent =
+                `Page ${data.page} of ${data.pages} · ${data.total} ${name === "dashboard" ? "logs" : name}`;
+            document.getElementById(`${prefix}-previous`).disabled = data.page <= 1;
+            document.getElementById(`${prefix}-next`).disabled = data.page >= data.pages;
+        }
+
+        async function fetchJson(url) {
+            const response = await fetch(url, { credentials: "same-origin", cache: "no-store" });
+            if (response.status === 401) {
+                window.location.assign("/login");
+                throw new Error("Please sign in with Discord.");
+            }
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || "The request failed.");
+            return data;
+        }
+
+        function selectedGuildParameters() {
+            return new URLSearchParams({
+                guildId: guildSelect.value,
+                page: String(pageState[activeTab])
+            });
+        }
+
+        async function loadLogs() {
+            if (!guildSelect.value) {
+                logBody.replaceChildren();
+                setStatus("dashboard-status", "The bot is not active in any server where you have administrator access.");
+                return;
+            }
+            setStatus("dashboard-status", "Loading moderation activity…");
+            const parameters = selectedGuildParameters();
+            parameters.set("eventType", eventSelect.value);
+            try {
+                const data = await fetchJson(`/api/logs?${parameters}`);
+                loadedLogs = data.logs;
+                updatePagination("dashboard", data, "logs");
+                renderLogs();
+                setStatus("dashboard-status", data.total ? `Showing ${data.logs.length} of ${data.total} logs.` : "No logs found.");
+            } catch (error) {
+                setStatus("dashboard-status", error.message, true);
+            }
+        }
+
+        function formatBytes(value) {
+            if (!Number.isFinite(value) || value < 0) return "Size unavailable";
+            if (value < 1024) return `${value} B`;
+            const units = ["KB", "MB", "GB"];
+            let size = value / 1024;
+            let unit = 0;
+            while (size >= 1024 && unit < units.length - 1) {
+                size /= 1024;
+                unit++;
+            }
+            return `${size.toFixed(1)} ${units[unit]}`;
+        }
+
+        function renderAttachments(attachments) {
+            const grid = document.getElementById("attachment-grid");
+            grid.replaceChildren();
+            if (!attachments.length) {
+                const empty = document.createElement("div");
+                empty.className = "empty-cell";
+                empty.textContent = "No ticket attachments are available for this server.";
+                grid.appendChild(empty);
+                return;
+            }
+            attachments.forEach((attachment) => {
+                const card = document.createElement("article");
+                card.className = "attachment-card";
+                const preview = document.createElement("div");
+                preview.className = "attachment-preview";
+                if (attachment.fileAvailable && attachment.contentType && attachment.contentType.startsWith("image/")) {
+                    const image = document.createElement("img");
+                    image.alt = attachment.name || "Ticket attachment";
+                    image.src = attachment.url;
+                    image.loading = "lazy";
+                    preview.appendChild(image);
+                } else {
+                    const placeholder = document.createElement("span");
+                    placeholder.className = "file-placeholder";
+                    placeholder.textContent = attachment.fileAvailable ? "▧" : "⌁";
+                    preview.appendChild(placeholder);
+                }
+
+                const copy = document.createElement("div");
+                copy.className = "attachment-copy";
+                const name = document.createElement("div");
+                name.className = "attachment-name";
+                name.textContent = attachment.name || "Attachment";
+                name.title = attachment.name || "Attachment";
+                const subtitle = document.createElement("div");
+                subtitle.className = "attachment-subtitle";
+                subtitle.textContent = `${attachment.username || "Unknown user"} · ${attachment.ticketTitle || `Ticket ${attachment.ticketId}`}`;
+                const meta = document.createElement("div");
+                meta.className = "attachment-meta";
+                const info = document.createElement("span");
+                info.textContent = `${formatBytes(attachment.size)} · ${attachment.currentTime || "Date unavailable"}`;
+                meta.appendChild(info);
+                if (attachment.fileAvailable && attachment.url) {
+                    const link = document.createElement("a");
+                    link.href = attachment.url;
+                    link.target = "_blank";
+                    link.rel = "noopener noreferrer";
+                    link.textContent = "Open file";
+                    meta.appendChild(link);
+                } else {
+                    const unavailable = document.createElement("span");
+                    unavailable.textContent = "File expired";
+                    meta.appendChild(unavailable);
+                }
+                copy.append(name, subtitle, meta);
+                card.append(preview, copy);
+                grid.appendChild(card);
+            });
+        }
+
+        async function loadAttachments() {
+            if (!guildSelect.value) return;
+            setStatus("attachments-status", "Loading ticket attachments…");
+            const parameters = selectedGuildParameters();
+            try {
+                const data = await fetchJson(`/api/ticket-attachments?${parameters}`);
+                renderAttachments(data.attachments);
+                updatePagination("attachments", data, "attachments");
+                setStatus("attachments-status", data.total
+                    ? `Showing ${data.attachments.length} of ${data.total} attachments. Files removed by retention are listed as expired.`
+                    : "No ticket attachments found.");
+            } catch (error) {
+                setStatus("attachments-status", error.message, true);
+            }
+        }
+
+        function addLink(cell, text, url) {
+            const link = document.createElement("a");
+            link.className = "text-link";
+            link.href = url;
+            link.textContent = text;
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+            cell.appendChild(link);
+        }
+
+        function addDownloadLink(cell, text, url, filename) {
+            const link = document.createElement("a");
+            link.className = "ticket-download";
+            link.href = url;
+            link.textContent = text;
+            link.download = filename;
+            cell.appendChild(link);
+            return link;
+        }
+
+        function renderTickets(tickets) {
+            const body = document.getElementById("tickets");
+            body.replaceChildren();
+            if (!tickets.length) {
+                const row = document.createElement("tr");
+                const cell = appendCell(row, "No tickets found.", "empty-cell");
+                cell.colSpan = 7;
+                body.appendChild(row);
+                return;
+            }
+            tickets.forEach((ticket) => {
+                const row = document.createElement("tr");
+                const statusCell = appendCell(row, "", "");
+                const badge = document.createElement("span");
+                badge.className = `badge${ticket.status === "closed" ? " closed" : ""}`;
+                badge.textContent = ticket.status === "closed" ? "Closed" : "Open";
+                statusCell.appendChild(badge);
+
+                const title = ticket.ticketTitle || `Ticket ${ticket.ticketId}`;
+                const titleCell = appendCell(row, "");
+                const transcriptUrl = `/api/tickets/${encodeURIComponent(ticket.ticketId)}/transcript?${new URLSearchParams({ guildId: guildSelect.value })}`;
+                if (ticket.status === "closed" && ticket.transcriptAvailable) {
+                    addDownloadLink(titleCell, title, transcriptUrl, `ticket-${ticket.ticketId}.html`);
+                } else {
+                    titleCell.textContent = title;
+                }
+                const description = document.createElement("div");
+                description.className = "muted";
+                description.textContent = ticket.ticketDescription || `Ticket ID ${ticket.ticketId}`;
+                titleCell.appendChild(description);
+                appendCell(row, ticket.ticketOwner || "Unknown");
+                const channelCell = appendCell(row, "");
+                if (ticket.channelId) {
+                    const channelUrl = `https://discord.com/channels/${guildSelect.value}/${ticket.channelId}`;
+                    addLink(channelCell, `#${ticket.channelId}`, channelUrl);
+                }
+                appendCell(row, `${ticket.messageCount === null ? "—" : ticket.messageCount} / ${ticket.attachmentCount || 0}`);
+                appendCell(row, ticket.closedAt ? formatDate(ticket.closedAt) : "—");
+                const actionCell = appendCell(row, "");
+                if (ticket.status === "closed" && ticket.transcriptAvailable) {
+                    addDownloadLink(actionCell, "Download HTML", transcriptUrl, `ticket-${ticket.ticketId}.html`);
+                } else if (ticket.channelId) {
+                    const channelUrl = `https://discord.com/channels/${guildSelect.value}/${ticket.channelId}`;
+                    addLink(actionCell, "Open channel", channelUrl);
+                }
+                body.appendChild(row);
+            });
+        }
+
+        async function loadTickets() {
+            if (!guildSelect.value) return;
+            setStatus("tickets-status", "Loading tickets…");
+            const parameters = selectedGuildParameters();
+            try {
+                const data = await fetchJson(`/api/tickets?${parameters}`);
+                renderTickets(data.tickets);
+                updatePagination("tickets", data, "tickets");
+                setStatus("tickets-status", data.total
+                    ? `Showing ${data.tickets.length} of ${data.total} open tickets and saved transcripts.`
+                    : "No tickets found.");
+            } catch (error) {
+                setStatus("tickets-status", error.message, true);
+            }
+        }
+
+        function loadActiveTab() {
+            if (activeTab === "dashboard") return loadLogs();
+            if (activeTab === "attachments") return loadAttachments();
+            return loadTickets();
+        }
+
+        function activateTab(name) {
+            activeTab = name;
+            document.querySelectorAll("[data-tab]").forEach((tab) => {
+                const selected = tab.dataset.tab === name;
+                tab.classList.toggle("active", selected);
+                tab.setAttribute("aria-selected", String(selected));
+            });
+            document.querySelectorAll(".panel").forEach((panel) => {
+                panel.hidden = panel.id !== `${name}-panel`;
+            });
+            loadActiveTab();
+        }
+
+        function setImage(image, url) {
+            if (!url) return;
+            image.src = url;
+            image.hidden = false;
+            image.addEventListener("error", () => { image.hidden = true; }, { once: true });
+        }
+
+        function chooseGuild(guild) {
+            guildSelect.value = guild.id;
+            document.getElementById("server-name").textContent = guild.name;
+            const initial = document.getElementById("server-initial");
+            initial.textContent = (guild.name || "S").slice(0, 1).toUpperCase();
+            const icon = document.getElementById("server-icon");
+            icon.hidden = true;
+            initial.hidden = Boolean(guild.iconUrl);
+            if (guild.iconUrl) {
+                icon.addEventListener("error", () => { initial.hidden = false; }, { once: true });
+                setImage(icon, guild.iconUrl);
+            }
+            const serverMenu = document.getElementById("server-menu");
+            serverMenu.querySelectorAll(".server-option").forEach((item) => {
+                item.setAttribute("aria-selected", String(item.dataset.guildId === guild.id));
+            });
+            serverMenu.hidden = true;
+            document.getElementById("server-picker-button").setAttribute("aria-expanded", "false");
+            pageState.dashboard = 1;
+            pageState.attachments = 1;
+            pageState.tickets = 1;
+            loadActiveTab();
+        }
+
+        async function initialize() {
+            try {
+                const data = await fetchJson("/api/guilds");
+                if (data.user) {
+                    document.getElementById("user-name").textContent = data.user.username || "Discord account";
+                    setImage(document.getElementById("user-avatar"), data.user.avatarUrl);
+                }
+                guildSelect.replaceChildren();
+                const serverMenu = document.getElementById("server-menu");
+                serverMenu.replaceChildren();
+                data.guilds.forEach((guild) => {
+                    const option = document.createElement("option");
+                    option.value = guild.id;
+                    option.textContent = guild.name;
+                    guildSelect.appendChild(option);
+
+                    const item = document.createElement("button");
+                    item.className = "server-option";
+                    item.type = "button";
+                    item.setAttribute("role", "option");
+                    item.setAttribute("aria-selected", "false");
+                    item.dataset.guildId = guild.id;
+                    const initial = document.createElement("span");
+                    initial.className = "guild-initial";
+                    initial.textContent = (guild.name || "S").slice(0, 1).toUpperCase();
+                    item.appendChild(initial);
+                    if (guild.iconUrl) {
+                        const icon = document.createElement("img");
+                        icon.className = "server-icon";
+                        icon.alt = "";
+                        setImage(icon, guild.iconUrl);
+                        item.replaceChild(icon, initial);
+                        icon.addEventListener("error", () => item.replaceChild(initial, icon), { once: true });
+                    }
+                    const name = document.createElement("span");
+                    name.className = "server-option-name";
+                    name.textContent = guild.name;
+                    item.appendChild(name);
+                    item.addEventListener("click", () => {
+                        serverMenu.querySelectorAll(".server-option").forEach((entry) => entry.setAttribute("aria-selected", "false"));
+                        item.setAttribute("aria-selected", "true");
+                        chooseGuild(guild);
+                    });
+                    serverMenu.appendChild(item);
+                });
+                if (!data.guilds.length) {
+                    document.getElementById("server-name").textContent = "No available servers";
+                    setStatus("dashboard-status", "The bot is not active in any server where you have administrator access.");
+                    return;
+                }
+                chooseGuild(data.guilds[0]);
+            } catch (error) {
+                setStatus("dashboard-status", error.message, true);
+            }
+        }
+
+        document.querySelectorAll("[data-tab]").forEach((tab) => {
+            tab.addEventListener("click", () => activateTab(tab.dataset.tab));
+        });
+        document.getElementById("server-picker-button").addEventListener("click", () => {
+            const menu = document.getElementById("server-menu");
+            menu.hidden = !menu.hidden;
+            document.getElementById("server-picker-button").setAttribute("aria-expanded", String(!menu.hidden));
+        });
+        document.addEventListener("click", (event) => {
+            const picker = document.querySelector(".server-picker");
+            if (!picker.contains(event.target)) {
+                document.getElementById("server-menu").hidden = true;
+                document.getElementById("server-picker-button").setAttribute("aria-expanded", "false");
+            }
+        });
+        document.getElementById("json-back").addEventListener("click", () => { detailScreen.hidden = true; });
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape" && !detailScreen.hidden) detailScreen.hidden = true;
+        });
+        eventSelect.addEventListener("change", () => { pageState.dashboard = 1; loadLogs(); });
+        searchInput.addEventListener("input", renderLogs);
+        document.getElementById("refresh").addEventListener("click", loadLogs);
+        document.getElementById("attachments-refresh").addEventListener("click", loadAttachments);
+        document.getElementById("tickets-refresh").addEventListener("click", loadTickets);
+        [
+            ["logs-previous", "dashboard", loadLogs, -1],
+            ["logs-next", "dashboard", loadLogs, 1],
+            ["attachments-previous", "attachments", loadAttachments, -1],
+            ["attachments-next", "attachments", loadAttachments, 1],
+            ["tickets-previous", "tickets", loadTickets, -1],
+            ["tickets-next", "tickets", loadTickets, 1]
+        ].forEach(([id, name, loader, direction]) => {
+            document.getElementById(id).addEventListener("click", () => {
+                pageState[name] = Math.max(1, Math.min(totalPages[name], pageState[name] + direction));
+                loader();
+            });
+        });
+        initialize();
+    </script>
+</body>
+</html>
