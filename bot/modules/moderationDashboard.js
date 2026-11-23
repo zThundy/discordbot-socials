@@ -78,11 +78,12 @@ class ModerationDashboard {
         app.get("/api/logs", asyncRoute((request, response) => this.listLogs(request, response)));
         app.get("/api/tickets", asyncRoute((request, response) => this.listTickets(request, response)));
         app.get("/api/ticket-attachments", asyncRoute((request, response) => this.listTicketAttachments(request, response)));
+        app.get("/api/tickets/:ticketId/attachments/:key", asyncRoute((request, response) => this.serveTicketAttachment(request, response)));
         app.get("/api/tickets/:ticketId/transcript", asyncRoute((request, response) => this.serveTicketTranscript(request, response)));
 
         app.use((error, request, response, next) => {
             if (!["/", "/login", "/callback", "/logout", "/api/guilds", "/api/logs", "/api/tickets", "/api/ticket-attachments"]
-                .includes(request.path) && !/^\/api\/tickets\/[^/]+\/transcript$/.test(request.path)) {
+                .includes(request.path) && !/^\/api\/tickets\/[^/]+\/(?:attachments\/[^/]+|transcript)$/.test(request.path)) {
                 return next(error);
             }
             if (response.headersSent) return next(error);
@@ -511,7 +512,7 @@ class ModerationDashboard {
                 authorProfile: row.authorProfile,
                 currentTime: row.currentTime,
                 orderDate: row.orderDate,
-                ...this.formatTicketAttachment(attachment, availableFiles)
+                ...this.formatTicketAttachment(attachment, availableFiles, access.guildId, row.ticketId)
             });
         }
         for (const ticket of closedTickets) {
@@ -524,7 +525,7 @@ class ModerationDashboard {
                     authorProfile: attachment.authorProfile,
                     currentTime: attachment.currentTime,
                     orderDate: attachment.orderDate,
-                    ...this.formatTicketAttachment(attachment, availableFiles)
+                    ...this.formatTicketAttachment(attachment, availableFiles, access.guildId, ticket.ticketId)
                 });
             }
         }
@@ -547,16 +548,95 @@ class ModerationDashboard {
         });
     }
 
-    formatTicketAttachment(attachment, availableFiles) {
+    formatTicketAttachment(attachment, availableFiles, guildId, ticketId) {
         const key = this.getStoredAttachmentKey(attachment && attachment.url);
         if (!key) return { name: attachment && attachment.name || "Attachment", fileAvailable: false };
+        const fileAvailable = availableFiles.has(key);
         return {
             name: attachment.name || "Attachment",
             contentType: attachment.contentType || "",
             size: Number.isFinite(Number(attachment.size)) ? Number(attachment.size) : null,
-            fileAvailable: availableFiles.has(key),
-            url: `${getDashboardUrl(this.config)}/?key=${encodeURIComponent(key)}`
+            fileAvailable,
+            url: fileAvailable
+                ? `/api/tickets/${encodeURIComponent(ticketId)}/attachments/${encodeURIComponent(key)}?guildId=${encodeURIComponent(guildId)}`
+                : null
         };
+    }
+
+    async serveTicketAttachment(request, response) {
+        const access = await this.getAuthorizedGuild(request, response);
+        if (!access) return;
+
+        const ticketId = String(request.params.ticketId || "");
+        const key = String(request.params.key || "");
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ticketId) ||
+            !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:\.[a-z0-9]{1,10})?$/i.test(key)) {
+            return response.status(404).send("Ticket attachment not found.");
+        }
+
+        let attachmentFound = false;
+        const openTicket = await access.bot.database.getTicket(ticketId);
+        if (openTicket) {
+            if (openTicket.guildId !== access.guildId) {
+                return response.status(404).send("Ticket attachment not found.");
+            }
+            const messages = await access.bot.database.getAllTicketMessages(ticketId);
+            attachmentFound = messages.some((message) => {
+                if (message.messageType !== "attachment") return false;
+                try {
+                    return this.getStoredAttachmentKey(JSON.parse(message.content).url) === key;
+                } catch (error) {
+                    console.error(`Could not parse ticket ${ticketId} attachment metadata:`, error);
+                    return false;
+                }
+            });
+        } else {
+            const metadataPath = path.join(path.resolve(this.config.tickets.folder), `${ticketId}.json`);
+            try {
+                const metadata = JSON.parse(await fs.promises.readFile(metadataPath, "utf8"));
+                attachmentFound = metadata.guildId === access.guildId &&
+                    metadata.ticketId === ticketId &&
+                    Array.isArray(metadata.attachments) &&
+                    metadata.attachments.some((attachment) => this.getStoredAttachmentKey(attachment.url) === key);
+            } catch (error) {
+                if (error.code !== "ENOENT") {
+                    console.error(`Could not verify ticket ${ticketId} attachment access:`, error);
+                }
+            }
+        }
+
+        if (!attachmentFound) return response.status(404).send("Ticket attachment not found.");
+
+        const filePath = path.join(path.resolve(this.config.uploader.folder), key);
+        let stats;
+        try {
+            stats = await fs.promises.stat(filePath);
+        } catch (error) {
+            if (error.code === "ENOENT") return response.status(404).send("Ticket attachment not found.");
+            throw error;
+        }
+        if (!stats.isFile()) return response.status(404).send("Ticket attachment not found.");
+
+        const extension = path.extname(key).toLowerCase();
+        const inlineImageTypes = {
+            ".avif": "image/avif",
+            ".bmp": "image/bmp",
+            ".gif": "image/gif",
+            ".jpeg": "image/jpeg",
+            ".jpg": "image/jpeg",
+            ".png": "image/png",
+            ".webp": "image/webp"
+        };
+        response.setHeader("Cache-Control", "private, no-store");
+        response.setHeader("X-Content-Type-Options", "nosniff");
+        if (inlineImageTypes[extension]) {
+            response.setHeader("Content-Type", inlineImageTypes[extension]);
+            response.setHeader("Content-Disposition", "inline");
+        } else {
+            response.setHeader("Content-Type", "application/octet-stream");
+            response.setHeader("Content-Disposition", `attachment; filename="${key}"`);
+        }
+        return response.sendFile(filePath);
     }
 
     async serveTicketTranscript(request, response) {

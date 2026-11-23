@@ -412,6 +412,7 @@
             <h1 id="json-title">Log details</h1>
             <div class="detail-actions">
                 <button id="show-json" class="secondary-button" type="button">View full JSON</button>
+                <button id="show-details" class="secondary-button" type="button" hidden>Back to event details</button>
                 <button id="json-back" class="secondary-button" type="button">Back to dashboard</button>
             </div>
         </div>
@@ -429,6 +430,7 @@
         let totalPages = { dashboard: 1, attachments: 1, tickets: 1 };
         let loadedLogs = [];
         let activeTab = "dashboard";
+        let currentEventLog = null;
         let currentEventPayload = null;
 
         function setStatus(id, message, isError = false) {
@@ -508,6 +510,7 @@
             const payload = log.payload || {};
             const operation = payload.operation || {};
             const details = operation.details || {};
+            currentEventLog = log;
             currentEventPayload = payload;
             document.getElementById("json-title").textContent = operation.title || log.eventType || "Event details";
 
@@ -516,6 +519,7 @@
             content.hidden = false;
             document.getElementById("json-content").hidden = true;
             document.getElementById("show-json").hidden = false;
+            document.getElementById("show-details").hidden = true;
 
             addDetailCard(content, "Event", {
                 Operation: operation.title || log.eventType,
@@ -619,6 +623,7 @@
             jsonContent.textContent = JSON.stringify(currentEventPayload, null, 2);
             jsonContent.hidden = false;
             document.getElementById("show-json").hidden = true;
+            document.getElementById("show-details").hidden = false;
         }
 
         function renderLogs() {
@@ -1027,6 +1032,10 @@
                 document.getElementById("server-menu").hidden = true;
                 document.getElementById("server-picker-button").setAttribute("aria-expanded", "false");
             }
+        });
+        document.getElementById("show-json").addEventListener("click", showJson);
+        document.getElementById("show-details").addEventListener("click", () => {
+            if (currentEventLog) showEventDetails(currentEventLog);
         });
         document.getElementById("json-back").addEventListener("click", () => { detailScreen.hidden = true; });
         document.addEventListener("keydown", (event) => {
