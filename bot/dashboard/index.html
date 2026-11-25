@@ -193,9 +193,16 @@
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 13px 15px; border-bottom: 1px solid #242837; text-align: left; vertical-align: top; }
         th { position: sticky; top: 0; z-index: 1; background: #181b25; color: #aab1c4; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+        .column-filter-row td { position: sticky; top: 36px; z-index: 1; padding: 7px; background: #181b25; }
+        .column-filter { width: 100%; min-width: 90px; min-height: 32px; padding: 6px 8px; border-radius: 7px; font-size: 11px; }
+        .column-filter::placeholder { color: #767d91; }
+        .column-filter-toolbar { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 12px; }
+        .column-filter-label { display: grid; gap: 5px; color: var(--muted); font-size: 10px; font-weight: 700; }
         td { color: #dce0eb; font-size: 12px; }
         tr:last-child td { border-bottom: 0; }
         .operation { min-width: 160px; font-weight: 700; }
+        .user-avatar { width: 38px; height: 38px; border-radius: 50%; background: #34394a; object-fit: cover; }
+        .user-activity-summary { margin-top: 5px; color: var(--muted); font-size: 10px; white-space: nowrap; }
         .message-content { max-width: 720px; white-space: pre-wrap; overflow-wrap: anywhere; }
         .message-attachment { margin-top: 6px; color: var(--muted); font-size: 11px; }
         .message-embed-button { display: block; max-width: 100%; margin-top: 7px; overflow-wrap: anywhere; text-align: left; white-space: normal; }
@@ -317,6 +324,9 @@
                 <button class="tab" type="button" role="tab" aria-selected="false" data-tab="messages">
                     <span class="tab-symbol" aria-hidden="true">▤</span>Messages
                 </button>
+                <button class="tab" type="button" role="tab" aria-selected="false" data-tab="users">
+                    <span class="tab-symbol" aria-hidden="true">♙</span>Users
+                </button>
                 <button class="tab" type="button" role="tab" aria-selected="false" data-tab="attachments">
                     <span class="tab-symbol" aria-hidden="true">⌑</span>Ticket attachments
                 </button>
@@ -324,7 +334,7 @@
                     <span class="tab-symbol" aria-hidden="true">▤</span>Tickets
                 </button>
                 <button class="tab" type="button" role="tab" aria-selected="false" data-tab="dashboard-logs">
-                    <span class="tab-symbol" aria-hidden="true">◷</span>Dashboard logs
+                    <span class="tab-symbol" aria-hidden="true">◷</span>API logs
                 </button>
             </nav>
         </div>
@@ -362,7 +372,7 @@
             <div class="table-wrap">
                 <table>
                     <thead>
-                        <tr><th>Date</th><th>Operation</th><th>User</th><th>Channel</th><th>Details</th></tr>
+                        <tr><th data-filter-key="date">Date</th><th data-filter-key="operation">Operation</th><th data-filter-key="user">User</th><th data-filter-key="channel">Channel</th><th data-filter-key="details">Details</th></tr>
                     </thead>
                     <tbody id="logs"></tbody>
                 </table>
@@ -391,7 +401,7 @@
             <div class="table-wrap">
                 <table>
                     <thead>
-                        <tr><th>Date</th><th>Author</th><th>Channel</th><th>Message</th></tr>
+                        <tr><th data-filter-key="date">Date</th><th data-filter-key="author">Author</th><th data-filter-key="channel">Channel</th><th data-filter-key="message">Message</th></tr>
                     </thead>
                     <tbody id="messages"></tbody>
                 </table>
@@ -403,6 +413,37 @@
             </div>
         </section>
 
+        <section id="users-panel" class="panel" role="tabpanel" hidden>
+            <div class="section-heading">
+                <div>
+                    <h1>Users</h1>
+                    <p>Review user profiles and their recorded messages, interactions, and voice activity.</p>
+                </div>
+                <button id="users-refresh" class="secondary-button" type="button">Refresh</button>
+            </div>
+            <p id="users-status" class="status" role="status">Choose a server to load users.</p>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th data-filter-key="avatar">Image</th>
+                            <th data-filter-key="username">Username</th>
+                            <th data-filter-key="id">Discord ID</th>
+                            <th data-filter-key="accountAge">Account age</th>
+                            <th data-filter-key="interactions">Interactions</th>
+                            <th data-filter-key="json">All JSON</th>
+                        </tr>
+                    </thead>
+                    <tbody id="users"></tbody>
+                </table>
+            </div>
+            <div class="pagination">
+                <button id="users-previous" class="secondary-button" type="button">Previous</button>
+                <span id="users-page">Page 1</span>
+                <button id="users-next" class="secondary-button" type="button">Next</button>
+            </div>
+        </section>
+
         <section id="attachments-panel" class="panel" role="tabpanel" hidden>
             <div class="section-heading">
                 <div>
@@ -411,6 +452,7 @@
                 </div>
                 <button id="attachments-refresh" class="secondary-button" type="button">Refresh</button>
             </div>
+            <div id="attachment-filters" class="column-filter-toolbar" aria-label="Filter ticket attachments"></div>
             <p id="attachments-status" class="status" role="status">Choose a server to load attachments.</p>
             <div id="attachment-grid" class="attachment-grid"></div>
             <div class="pagination">
@@ -432,7 +474,7 @@
             <div class="table-wrap">
                 <table>
                     <thead>
-                        <tr><th>Status</th><th>Ticket</th><th>Owner</th><th>Channel</th><th>Messages / files</th><th>Closed</th><th>Transcript</th></tr>
+                        <tr><th data-filter-key="status">Status</th><th data-filter-key="ticket">Ticket</th><th data-filter-key="owner">Owner</th><th data-filter-key="channel">Channel</th><th data-filter-key="messages">Messages / files</th><th data-filter-key="closed">Closed</th><th data-filter-key="transcript">Transcript</th></tr>
                     </thead>
                     <tbody id="tickets"></tbody>
                 </table>
@@ -447,8 +489,8 @@
         <section id="dashboard-logs-panel" class="panel" role="tabpanel" hidden>
             <div class="section-heading">
                 <div>
-                    <h1>Dashboard logs</h1>
-                    <p>HTTP requests and user-interface interactions, including dashboard-wide activity.</p>
+                    <h1>API request logs</h1>
+                    <p>Review API requests, users, IP addresses, endpoints, and response statuses.</p>
                 </div>
                 <button id="dashboard-logs-refresh" class="secondary-button" type="button">Refresh</button>
             </div>
@@ -457,11 +499,11 @@
                     <input id="dashboard-logs-search" type="search" maxlength="200" placeholder="User, action, endpoint">
                 </label>
             </div>
-            <p id="dashboard-logs-status" class="status" role="status">Choose a server to load dashboard logs.</p>
+            <p id="dashboard-logs-status" class="status" role="status">Choose a server to load API request logs.</p>
             <div class="table-wrap">
                 <table>
                     <thead>
-                        <tr><th>Date</th><th>User</th><th>Action</th><th>Request</th><th>Status</th><th>Details</th></tr>
+                        <tr><th data-filter-key="date">Date</th><th data-filter-key="user">User</th><th data-filter-key="ip">IP address</th><th data-filter-key="action">Action</th><th data-filter-key="request">Request</th><th data-filter-key="status">Status</th><th data-filter-key="details">Details</th></tr>
                     </thead>
                     <tbody id="dashboard-logs"></tbody>
                 </table>
@@ -493,15 +535,14 @@
         const searchInput = document.getElementById("search");
         const logBody = document.getElementById("logs");
         const detailScreen = document.getElementById("json-screen");
-        const pageState = { dashboard: 1, messages: 1, attachments: 1, tickets: 1, "dashboard-logs": 1 };
-        let totalPages = { dashboard: 1, messages: 1, attachments: 1, tickets: 1, "dashboard-logs": 1 };
+        const pageState = { dashboard: 1, messages: 1, users: 1, attachments: 1, tickets: 1, "dashboard-logs": 1 };
+        let totalPages = { dashboard: 1, messages: 1, users: 1, attachments: 1, tickets: 1, "dashboard-logs": 1 };
         let loadedLogs = [];
         let activeTab = "dashboard";
-        const dashboardInteractionQueue = [];
-        let dashboardInteractionTimer = null;
-        let dashboardInteractionSending = false;
+        let columnFilterTimeout = null;
         let currentEventLog = null;
         let currentMessageEmbed = null;
+        let currentUser = null;
         let currentEventPayload = null;
 
         function setStatus(id, message, isError = false) {
@@ -518,9 +559,102 @@
             return cell;
         }
 
+        function createColumnFilter(label, key) {
+            const wrapper = document.createElement("label");
+            wrapper.className = "column-filter-label";
+            wrapper.textContent = label;
+            const input = document.createElement("input");
+            input.className = "column-filter";
+            input.type = "search";
+            input.dataset.filterKey = key;
+            input.placeholder = "match, !exclude";
+            input.title = "Comma-separated values; prefix a value with ! to exclude it.";
+            input.setAttribute("aria-label", `Filter ${label}`);
+            wrapper.appendChild(input);
+            return wrapper;
+        }
+
+        function initializeColumnFilters() {
+            document.querySelectorAll(".table-wrap table").forEach(table => {
+                const header = table.tHead && table.tHead.rows[0];
+                if (!header) return;
+                const filterRow = document.createElement("tr");
+                filterRow.className = "column-filter-row";
+                Array.from(header.cells).forEach(cell => {
+                    const filterCell = document.createElement("td");
+                    if (cell.dataset.filterKey) {
+                        const input = document.createElement("input");
+                        input.className = "column-filter";
+                        input.type = "search";
+                        input.dataset.filterKey = cell.dataset.filterKey;
+                        const isDateFilter = cell.dataset.filterKey === "date" || cell.dataset.filterKey === "accountAge";
+                        input.placeholder = isDateFilter ? "YYYY-MM-DD, !date" : "match, !exclude";
+                        const dateHint = cell.dataset.filterKey === "accountAge"
+                            ? " Filter by account creation date (YYYY-MM-DD)."
+                            : isDateFilter ? " Use YYYY-MM-DD for dates." : "";
+                        input.title = `Filter ${cell.textContent.trim()}; comma-separated values, prefix ! to exclude.${dateHint}`;
+                        input.setAttribute("aria-label", `Filter ${cell.textContent.trim()}`);
+                        filterCell.appendChild(input);
+                    }
+                    filterRow.appendChild(filterCell);
+                });
+                table.tHead.appendChild(filterRow);
+            });
+
+            const attachmentFilters = document.getElementById("attachment-filters");
+            [
+                ["File name", "name"],
+                ["User", "user"],
+                ["Ticket", "ticket"],
+                ["Size", "size"],
+                ["Date", "date"],
+                ["Availability", "availability"]
+            ].forEach(([label, key]) => attachmentFilters.appendChild(createColumnFilter(label, key)));
+
+            document.querySelectorAll(".column-filter").forEach(input => {
+                input.addEventListener("input", () => {
+                    clearTimeout(columnFilterTimeout);
+                    columnFilterTimeout = setTimeout(() => {
+                        pageState[activeTab] = 1;
+                        loadActiveTab();
+                    }, 300);
+                });
+            });
+        }
+
+        function appendColumnFilters(parameters) {
+            const panel = document.getElementById(`${activeTab}-panel`);
+            if (!panel) return;
+            panel.querySelectorAll(".column-filter").forEach(input => {
+                const value = input.value.trim();
+                if (value) parameters.set(`filter_${input.dataset.filterKey}`, value);
+            });
+        }
+
         function formatDate(value) {
+            if (value === undefined || value === null || value === "") return "—";
             const date = new Date(value);
             return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString();
+        }
+
+        function formatAccountAge(timestamp) {
+            if (timestamp === undefined || timestamp === null || timestamp === "" || !Number.isFinite(Number(timestamp))) return "—";
+            const days = Math.max(0, Math.floor((Date.now() - Number(timestamp)) / 86400000));
+            const years = Math.floor(days / 365.2425);
+            const months = Math.floor((days - years * 365.2425) / 30.436875);
+            if (years) return `${years} ${years === 1 ? "year" : "years"}${months ? `, ${months} ${months === 1 ? "month" : "months"}` : ""}`;
+            if (months) return `${months} ${months === 1 ? "month" : "months"}`;
+            return `${days} ${days === 1 ? "day" : "days"}`;
+        }
+
+        function formatDuration(milliseconds) {
+            const totalMinutes = Math.floor(Math.max(0, Number(milliseconds) || 0) / 60000);
+            const days = Math.floor(totalMinutes / 1440);
+            const hours = Math.floor((totalMinutes % 1440) / 60);
+            const minutes = totalMinutes % 60;
+            if (days) return `${days}d ${hours}h`;
+            if (hours) return `${hours}h ${minutes}m`;
+            return `${minutes}m`;
         }
 
         function getUser(payload) {
@@ -583,6 +717,7 @@
             const details = operation.details || {};
             currentEventLog = log;
             currentMessageEmbed = null;
+            currentUser = null;
             currentEventPayload = payload;
             document.getElementById("json-title").textContent = operation.title || log.eventType || "Event details";
 
@@ -691,6 +826,7 @@
         function showMessageEmbed(message, embed, index) {
             currentEventLog = null;
             currentMessageEmbed = { message, embed, index };
+            currentUser = null;
             currentEventPayload = { type: "message-embed", ...currentMessageEmbed };
             document.getElementById("json-title").textContent = embed.title || `Message embed ${index + 1}`;
 
@@ -735,6 +871,96 @@
 
             detailScreen.hidden = false;
             document.getElementById("json-back").focus();
+        }
+
+        function showUserDetails(user) {
+            currentEventLog = null;
+            currentMessageEmbed = null;
+            currentUser = user;
+            currentEventPayload = user;
+            document.getElementById("json-title").textContent =
+                user.displayName || user.globalName || user.username || user.userId;
+            const content = document.getElementById("event-detail-content");
+            content.replaceChildren();
+            content.hidden = false;
+            document.getElementById("json-content").hidden = true;
+            document.getElementById("show-json").hidden = false;
+            document.getElementById("show-details").hidden = true;
+            addDetailCard(content, "User", {
+                Username: user.username,
+                "Global name": user.globalName,
+                "Display name": user.displayName,
+                "Discord ID": user.userId,
+                "Account created": formatDate(user.accountCreatedAt),
+                "Joined server": formatDate(user.joinedAt),
+                Server: user.profile && user.profile.guild && user.profile.guild.name
+            });
+            addDetailCard(content, "Activity", {
+                "Messages sent": user.messagesSent,
+                "Interactions sent": user.interactionsSent,
+                "Time in voice channels": formatDuration(user.voiceTimeMs),
+                "Current voice channel": user.voiceChannelId || "Not connected",
+                "Last activity": user.profile && user.profile.lastActivity && user.profile.lastActivity.type,
+                "Last active": formatDate(user.lastActivityAt)
+            });
+            detailScreen.hidden = false;
+            document.getElementById("json-back").focus();
+        }
+
+        function showUserJson(user) {
+            showUserDetails(user);
+            showJson();
+        }
+
+        function renderUsers(users) {
+            const body = document.getElementById("users");
+            body.replaceChildren();
+            if (!users.length) {
+                const row = document.createElement("tr");
+                const cell = appendCell(row, "No users found.", "empty-cell");
+                cell.colSpan = 6;
+                body.appendChild(row);
+                return;
+            }
+            users.forEach(user => {
+                const row = document.createElement("tr");
+                const imageCell = document.createElement("td");
+                const image = document.createElement("img");
+                image.className = "user-avatar";
+                image.alt = `${user.displayName || user.username || "User"} avatar`;
+                setImage(image, user.avatarUrl);
+                imageCell.appendChild(image);
+                row.appendChild(imageCell);
+                appendCell(row, user.displayName || user.globalName || user.username || "Unknown");
+                appendCell(row, user.userId);
+                appendCell(row, formatAccountAge(user.accountCreatedAt));
+
+                const activityCell = document.createElement("td");
+                const activityButton = document.createElement("button");
+                activityButton.className = "icon-button";
+                activityButton.type = "button";
+                activityButton.textContent = "View activity";
+                activityButton.setAttribute("aria-label", `View activity for ${user.displayName || user.username || user.userId}`);
+                activityButton.addEventListener("click", () => showUserDetails(user));
+                activityCell.appendChild(activityButton);
+                const activitySummary = document.createElement("div");
+                activitySummary.className = "user-activity-summary";
+                activitySummary.textContent =
+                    `${user.messagesSent} messages · ${user.interactionsSent} interactions · ${formatDuration(user.voiceTimeMs)} voice`;
+                activityCell.appendChild(activitySummary);
+                row.appendChild(activityCell);
+
+                const jsonCell = document.createElement("td");
+                const jsonButton = document.createElement("button");
+                jsonButton.className = "icon-button";
+                jsonButton.type = "button";
+                jsonButton.textContent = "View full JSON";
+                jsonButton.setAttribute("aria-label", `View all JSON for ${user.displayName || user.username || user.userId}`);
+                jsonButton.addEventListener("click", () => showUserJson(user));
+                jsonCell.appendChild(jsonButton);
+                row.appendChild(jsonCell);
+                body.appendChild(row);
+            });
         }
 
         function showJson() {
@@ -848,6 +1074,7 @@
             setStatus("dashboard-status", "Loading moderation activity…");
             const parameters = selectedGuildParameters();
             parameters.set("eventType", eventSelect.value);
+            appendColumnFilters(parameters);
             try {
                 const data = await fetchJson(`/api/logs?${parameters}`);
                 loadedLogs = data.logs;
@@ -904,6 +1131,7 @@
             setStatus("messages-status", "Loading messages…");
             const parameters = selectedGuildParameters();
             parameters.set("search", document.getElementById("messages-search").value.trim());
+            appendColumnFilters(parameters);
             try {
                 const data = await fetchJson(`/api/messages?${parameters}`);
                 renderMessages(data.messages);
@@ -915,6 +1143,21 @@
                     : "No messages found.");
             } catch (error) {
                 setStatus("messages-status", error.message, true);
+            }
+        }
+
+        async function loadUsers() {
+            if (!guildSelect.value) return;
+            setStatus("users-status", "Loading users…");
+            const parameters = selectedGuildParameters();
+            appendColumnFilters(parameters);
+            try {
+                const data = await fetchJson(`/api/users?${parameters}`);
+                renderUsers(data.users);
+                updatePagination("users", data, "users");
+                setStatus("users-status", `${data.total} users found.`);
+            } catch (error) {
+                setStatus("users-status", error.message, true);
             }
         }
 
@@ -995,6 +1238,7 @@
             if (!guildSelect.value) return;
             setStatus("attachments-status", "Loading ticket attachments…");
             const parameters = selectedGuildParameters();
+            appendColumnFilters(parameters);
             try {
                 const data = await fetchJson(`/api/ticket-attachments?${parameters}`);
                 renderAttachments(data.attachments);
@@ -1080,6 +1324,7 @@
             if (!guildSelect.value) return;
             setStatus("tickets-status", "Loading tickets…");
             const parameters = selectedGuildParameters();
+            appendColumnFilters(parameters);
             try {
                 const data = await fetchJson(`/api/tickets?${parameters}`);
                 renderTickets(data.tickets);
@@ -1097,8 +1342,8 @@
             body.replaceChildren();
             if (!logs.length) {
                 const row = document.createElement("tr");
-                const cell = appendCell(row, "No dashboard activity found.", "empty-cell");
-                cell.colSpan = 6;
+                const cell = appendCell(row, "No API requests found.", "empty-cell");
+                cell.colSpan = 7;
                 body.appendChild(row);
                 return;
             }
@@ -1108,6 +1353,7 @@
                 appendCell(row, log.username
                     ? `${log.username} (${log.userId || "unknown"})`
                     : log.userId || "Unauthenticated");
+                appendCell(row, log.ipAddress);
                 appendCell(row, log.action);
                 appendCell(row, `${log.method} ${log.path}`);
                 appendCell(row, log.status === null ? "—" : String(log.status));
@@ -1118,101 +1364,26 @@
 
         async function loadDashboardLogs() {
             if (!guildSelect.value) return;
-            setStatus("dashboard-logs-status", "Loading dashboard logs…");
+            setStatus("dashboard-logs-status", "Loading API request logs…");
             const parameters = selectedGuildParameters();
             parameters.set("search", document.getElementById("dashboard-logs-search").value.trim());
+            appendColumnFilters(parameters);
             try {
                 const data = await fetchJson(`/api/dashboard-logs?${parameters}`);
                 renderDashboardLogs(data.logs);
                 updatePagination("dashboard-logs", data, "dashboard-logs");
                 setStatus("dashboard-logs-status", data.total
-                    ? `Showing ${data.logs.length} of ${data.total} dashboard interactions.`
-                    : "No dashboard activity found.");
+                    ? `Showing ${data.logs.length} of ${data.total} API requests.`
+                    : "No API requests found.");
             } catch (error) {
                 setStatus("dashboard-logs-status", error.message, true);
-            }
-        }
-
-        async function flushDashboardInteractions() {
-            if (dashboardInteractionSending || !guildSelect.value || !dashboardInteractionQueue.length) return;
-            dashboardInteractionSending = true;
-            const guildId = dashboardInteractionQueue[0].guildId;
-            if (!guildId) {
-                dashboardInteractionSending = false;
-                return;
-            }
-            const events = [];
-            while (events.length < 25 &&
-                dashboardInteractionQueue.length &&
-                dashboardInteractionQueue[0].guildId === guildId) {
-                events.push(dashboardInteractionQueue.shift());
-            }
-            try {
-                const response = await fetch(`/api/dashboard-interactions?${new URLSearchParams({ guildId })}`, {
-                    method: "POST",
-                    credentials: "same-origin",
-                    cache: "no-store",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ events }),
-                    keepalive: true
-                });
-                if (!response.ok) throw new Error(`Interaction audit request failed with HTTP ${response.status}.`);
-            } catch (error) {
-                console.error("Could not send dashboard interaction audit:", error);
-                const retries = (events[0].retries || 0) + 1;
-                if (retries <= 3) {
-                    dashboardInteractionQueue.unshift(...events.map(item => ({ ...item, retries })));
-                } else {
-                    console.error(`Discarding ${events.length} dashboard interactions after ${retries} failed attempts.`);
-                }
-            } finally {
-                dashboardInteractionSending = false;
-                if (dashboardInteractionQueue.length) {
-                    dashboardInteractionTimer = setTimeout(flushDashboardInteractions, 1000);
-                }
-            }
-        }
-
-        function captureDashboardInteraction(event) {
-            if (!event.isTrusted) return;
-            const eventTarget = event.target instanceof Element
-                ? event.target
-                : event.target === document || event.target === window
-                    ? document.documentElement
-                    : null;
-            const target = eventTarget
-                ? eventTarget.closest("button, a, input, select, textarea, [role], [data-tab]") || eventTarget
-                : null;
-            if (!target) return;
-            const guildId = target.dataset.guildId || guildSelect.value;
-            if (!guildId) return;
-            dashboardInteractionQueue.push({
-                type: event.type,
-                timestamp: Date.now(),
-                guildId,
-                retries: 0,
-                target: {
-                    id: target.id || null,
-                    tag: target.tagName.toLowerCase(),
-                    role: target.getAttribute("role"),
-                    name: target.getAttribute("name"),
-                    controlType: target.getAttribute("type"),
-                    tab: target.getAttribute("data-tab"),
-                    valueLength: typeof target.value === "string" ? target.value.length : null
-                }
-            });
-            if (dashboardInteractionQueue.length >= 25) {
-                clearTimeout(dashboardInteractionTimer);
-                dashboardInteractionTimer = null;
-                flushDashboardInteractions();
-            } else if (!dashboardInteractionTimer) {
-                dashboardInteractionTimer = setTimeout(flushDashboardInteractions, 500);
             }
         }
 
         function loadActiveTab() {
             if (activeTab === "dashboard") return loadLogs();
             if (activeTab === "messages") return loadMessages();
+            if (activeTab === "users") return loadUsers();
             if (activeTab === "attachments") return loadAttachments();
             if (activeTab === "tickets") return loadTickets();
             return loadDashboardLogs();
@@ -1258,6 +1429,7 @@
             document.getElementById("server-picker-button").setAttribute("aria-expanded", "false");
             pageState.dashboard = 1;
             pageState.messages = 1;
+            pageState.users = 1;
             pageState.attachments = 1;
             pageState.tickets = 1;
             pageState["dashboard-logs"] = 1;
@@ -1340,7 +1512,7 @@
             if (currentEventLog) showEventDetails(currentEventLog);
             else if (currentMessageEmbed) {
                 showMessageEmbed(currentMessageEmbed.message, currentMessageEmbed.embed, currentMessageEmbed.index);
-            }
+            } else if (currentUser) showUserDetails(currentUser);
         });
         document.getElementById("json-back").addEventListener("click", () => { detailScreen.hidden = true; });
         document.addEventListener("keydown", (event) => {
@@ -1350,6 +1522,7 @@
         searchInput.addEventListener("input", renderLogs);
         document.getElementById("refresh").addEventListener("click", loadLogs);
         document.getElementById("messages-refresh").addEventListener("click", loadMessages);
+        document.getElementById("users-refresh").addEventListener("click", loadUsers);
         document.getElementById("messages-search").addEventListener("change", () => {
             pageState.messages = 1;
             loadMessages();
@@ -1362,23 +1535,12 @@
             loadDashboardLogs();
         });
         [
-            "click", "dblclick", "auxclick", "input", "change", "submit", "reset",
-            "keydown", "keyup", "focusin", "focusout", "pointerdown", "pointerup",
-            "touchstart", "touchend", "contextmenu", "copy", "cut", "paste",
-            "dragstart", "dragend", "drop", "scroll", "wheel"
-        ]
-            .forEach((eventType) => document.addEventListener(eventType, captureDashboardInteraction, true));
-        ["popstate", "hashchange"].forEach((eventType) =>
-            window.addEventListener(eventType, captureDashboardInteraction, true));
-        window.addEventListener("pagehide", () => {
-            clearTimeout(dashboardInteractionTimer);
-            flushDashboardInteractions();
-        });
-        [
             ["logs-previous", "dashboard", loadLogs, -1],
             ["logs-next", "dashboard", loadLogs, 1],
             ["messages-previous", "messages", loadMessages, -1],
             ["messages-next", "messages", loadMessages, 1],
+            ["users-previous", "users", loadUsers, -1],
+            ["users-next", "users", loadUsers, 1],
             ["attachments-previous", "attachments", loadAttachments, -1],
             ["attachments-next", "attachments", loadAttachments, 1],
             ["tickets-previous", "tickets", loadTickets, -1],
@@ -1391,6 +1553,7 @@
                 loader();
             });
         });
+        initializeColumnFilters();
         initialize();
     </script>
 </body>

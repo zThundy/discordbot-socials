@@ -100,8 +100,124 @@ class BOT {
         });
     }
 
+    _recordDiscordUserActivity(source, activityType, channelId) {
+        if (!source) return;
+        const user = source.author || source.user || source.member && source.member.user ||
+            (source.id && source.username ? source : null);
+        if (!user || !user.id || user.bot) return;
+        const member = source.member && source.member.user
+            ? source.member
+            : source.user && source.roles
+                ? source
+                : this.guild.members.cache.get(user.id);
+        const occurredAt = Date.now();
+        const accountCreatedAt = Number.isFinite(user.createdTimestamp)
+            ? user.createdTimestamp
+            : user.createdAt instanceof Date ? user.createdAt.getTime() : null;
+        const roles = member && member.roles
+            ? member.roles.cache
+                ? Array.from(member.roles.cache.values(), role => ({
+                    id: role.id,
+                    name: role.name,
+                    color: role.hexColor,
+                    position: role.position
+                }))
+                : Array.isArray(member.roles) ? member.roles.map(roleId => ({ id: roleId })) : []
+            : [];
+        const displayName = member && (member.displayName || member.nickname) ||
+            user.globalName || user.global_name || user.username || user.id;
+        const avatarUrl = member && typeof member.displayAvatarURL === "function"
+            ? member.displayAvatarURL({ size: 64 })
+            : typeof user.displayAvatarURL === "function" ? user.displayAvatarURL({ size: 64 }) : null;
+        const dateValue = value => value instanceof Date
+            ? value.toISOString()
+            : typeof value === "string" ? value : null;
+        const userSnapshot = typeof user.toJSON === "function" ? user.toJSON() : {};
+        const memberSnapshot = member && typeof member.toJSON === "function" ? member.toJSON() : {};
+        const profile = {
+            guildId: this.guild.id,
+            userId: user.id,
+            username: user.username || user.tag || user.id,
+            globalName: user.globalName || user.global_name || null,
+            displayName,
+            avatarUrl,
+            accountCreatedAt,
+            joinedAt: member ? dateValue(member.joinedAt) : null,
+            bot: Boolean(user.bot),
+            profileJson: JSON.stringify({
+                user: {
+                    ...userSnapshot,
+                    id: user.id,
+                    username: user.username || null,
+                    globalName: user.globalName || user.global_name || null,
+                    discriminator: user.discriminator || null,
+                    tag: user.tag || null,
+                    bot: Boolean(user.bot),
+                    system: Boolean(user.system),
+                    createdAt: accountCreatedAt === null ? null : new Date(accountCreatedAt).toISOString(),
+                    avatar: user.avatar || null,
+                    banner: user.banner || null,
+                    accentColor: user.accentColor ?? null,
+                    avatarUrl: typeof user.displayAvatarURL === "function"
+                        ? user.displayAvatarURL({ size: 128 })
+                        : null
+                },
+                member: member ? {
+                    ...memberSnapshot,
+                    id: member.id || user.id,
+                    nickname: member.nickname || null,
+                    displayName,
+                    joinedAt: dateValue(member.joinedAt),
+                    premiumSince: dateValue(member.premiumSince),
+                    pending: member.pending ?? null,
+                    roles,
+                    permissions: member.permissions && typeof member.permissions.toArray === "function"
+                        ? member.permissions.toArray()
+                        : []
+                } : null,
+                guild: { id: this.guild.id, name: this.guild.name },
+                lastActivity: {
+                    type: activityType,
+                    occurredAt: new Date(occurredAt).toISOString(),
+                    channelId: channelId || null
+                }
+            })
+        };
+        this.databaseReady.then(ready => {
+            if (!ready) return;
+            return this.database.recordDiscordUserActivity(profile, activityType, occurredAt, channelId || null);
+        }).catch(error => {
+            console.error(`Could not update Discord user activity for ${user.id}:`, error);
+        });
+    }
+
     // main event handler for the current bot instance
     event(event, ...args) {
+        if (event === "command" || event === "button" || event === "select" ||
+            event === "modal" || event === "roleSelect" || event === "channelSelect" ||
+            event === "context") {
+            const interaction = args[0];
+            this._recordDiscordUserActivity(interaction, "interaction", interaction.channelId);
+        } else if (event === "message" || event === "messageUpdate") {
+            const message = event === "messageUpdate"
+                ? args[1].author ? args[1] : args[0]
+                : args[0];
+            this._recordDiscordUserActivity(message, event === "message" ? "message" : "update", message.channelId);
+        } else if (event === "voiceStateUpdate") {
+            const oldState = args[0];
+            const newState = args[1];
+            const member = newState.member || oldState.member ||
+                this.guild.members.cache.get(newState.id || oldState.id);
+            const user = member && member.user ||
+                this.client.users.cache.get(newState.id || oldState.id);
+            if (user) {
+                this._recordDiscordUserActivity({
+                    user,
+                    member: member && member.user ? member : null
+                }, "voice", newState.channelId || null);
+            }
+        }
+
         if (event === "command" || event === "button" || event === "select" ||
             event === "modal" || event === "roleSelect" || event === "channelSelect" ||
             event === "context") {

@@ -1,5 +1,4 @@
 const crypto = require("crypto");
-const express = require("express");
 const fs = require("fs");
 const path = require("path");
 const { PermissionsBitField } = require("discord.js");
@@ -55,6 +54,39 @@ function parsePayload(row) {
     }
 }
 
+function getColumnFilters(request, fields) {
+    const filters = {};
+    for (const field of fields) {
+        const key = `filter_${field}`;
+        const value = request.query[key];
+        if (value === undefined || value === "") continue;
+        if (typeof value !== "string" || value.length > 200) {
+            return { error: `Column filters must be 200 characters or fewer (${field}).` };
+        }
+        filters[field] = value;
+    }
+    return { filters };
+}
+
+function matchesColumnFilters(record, filters, valuesByField) {
+    return Object.entries(filters).every(([field, value]) => {
+        const text = String(valuesByField[field](record) ?? "").toLowerCase();
+        const include = [];
+        const exclude = [];
+        for (const item of value.split(",")) {
+            const term = item.trim().toLowerCase();
+            if (!term) continue;
+            if (term.startsWith("!")) {
+                if (term.length > 1) exclude.push(term.slice(1).trim());
+            } else {
+                include.push(term);
+            }
+        }
+        return (!include.length || include.some(term => text.includes(term))) &&
+            !exclude.some(term => text.includes(term));
+    });
+}
+
 class ModerationDashboard {
     constructor(app, client, bots, config) {
         this.app = app;
@@ -73,6 +105,7 @@ class ModerationDashboard {
             response.setHeader("X-Frame-Options", "DENY");
             response.setHeader("Referrer-Policy", "no-referrer");
             response.once("finish", () => {
+                if (!request.path.startsWith("/api/")) return;
                 const current = response.locals.dashboardAuditUser
                     ? { session: { user: response.locals.dashboardAuditUser } }
                     : this.readSession(request);
@@ -82,6 +115,7 @@ class ModerationDashboard {
                     guildId: response.locals.dashboardGuildId || null,
                     userId: user && user.id || null,
                     username: user && (user.global_name || user.username) || null,
+                    ipAddress: request.ip || request.socket.remoteAddress || null,
                     action: `HTTP ${request.method} ${request.path}`,
                     method: request.method,
                     path: request.path,
@@ -96,7 +130,6 @@ class ModerationDashboard {
             });
             next();
         });
-        app.use(express.json({ limit: "32kb" }));
         app.get("/login", (request, response) => this.login(request, response));
         app.get("/callback", asyncRoute((request, response) => this.callback(request, response)));
         app.get("/logout", (request, response) => this.logout(request, response));
@@ -104,24 +137,26 @@ class ModerationDashboard {
         app.get("/api/guilds", asyncRoute((request, response) => this.listGuilds(request, response)));
         app.get("/api/logs", asyncRoute((request, response) => this.listLogs(request, response)));
         app.get("/api/dashboard-logs", asyncRoute((request, response) => this.listDashboardLogs(request, response)));
-        app.post("/api/dashboard-interactions", asyncRoute((request, response) => this.recordClientInteractions(request, response)));
         app.get("/api/messages", asyncRoute((request, response) => this.listMessages(request, response)));
+        app.get("/api/users", asyncRoute((request, response) => this.listUsers(request, response)));
         app.get("/api/tickets", asyncRoute((request, response) => this.listTickets(request, response)));
         app.get("/api/ticket-attachments", asyncRoute((request, response) => this.listTicketAttachments(request, response)));
         app.get("/api/tickets/:ticketId/attachments/:key", asyncRoute((request, response) => this.serveTicketAttachment(request, response)));
         app.get("/api/tickets/:ticketId/transcript", asyncRoute((request, response) => this.serveTicketTranscript(request, response)));
 
         app.use((error, request, response, next) => {
-            if (!["/", "/login", "/callback", "/logout", "/api/guilds", "/api/logs", "/api/dashboard-logs", "/api/dashboard-interactions", "/api/messages", "/api/tickets", "/api/ticket-attachments"]
-                .includes(request.path) && !/^\/api\/tickets\/[^/]+\/(?:attachments\/[^/]+|transcript)$/.test(request.path)) {
-                return next(error);
-            }
             if (response.headersSent) return next(error);
             console.error("Moderator dashboard request failed:", error);
             if (request.path.startsWith("/api/")) {
                 return response.status(500).json({ error: "The dashboard request could not be completed." });
             }
             return this.sendErrorPage(response, 500, "The dashboard request could not be completed.");
+        });
+        app.use((request, response) => {
+            if (request.path.startsWith("/api/")) {
+                return response.status(404).json({ error: "API route not found." });
+            }
+            return this.sendErrorPage(response, 404, "The requested page was not found.");
         });
     }
 
@@ -240,7 +275,7 @@ class ModerationDashboard {
                 if (!this.dashboardLogDatabases.has(bot.database)) {
                     this.dashboardLogDatabases.add(bot.database);
                     bot.database.ready.then(() => this.flushPendingDashboardLogs()).catch(error => {
-                        console.error("Could not initialize dashboard interaction logging:", error);
+                        console.error("Could not initialize API request logging:", error);
                     });
                 }
                 return bot.database;
@@ -267,7 +302,7 @@ class ModerationDashboard {
                 this.pendingDashboardLogs.shift();
             }
         }).catch(error => {
-            console.error("Could not save dashboard interaction logs:", error);
+            console.error("Could not save API request logs:", error);
         }).finally(() => {
             this.dashboardLogFlush = null;
         });
@@ -597,6 +632,10 @@ class ModerationDashboard {
         const access = await this.getAuthorizedGuild(request, response);
         if (!access) return;
 
+        const { filters, error } = getColumnFilters(request, [
+            "status", "ticket", "owner", "channel", "messages", "closed", "transcript"
+        ]);
+        if (error) return response.status(400).json({ error });
         const page = this.getPage(request);
         const limit = 50;
         const offset = (page - 1) * limit;
@@ -618,19 +657,44 @@ class ModerationDashboard {
                 status: "closed",
                 transcriptAvailable: true
             }));
-        const total = openTotal + sortedClosedTickets.length;
-        const tickets = [];
-        if (offset < openTotal) {
+        const filtersApplied = Object.keys(filters).length > 0;
+        let total;
+        let tickets;
+        if (filtersApplied) {
             const openTickets = await access.bot.database.getTicketsByGuild(access.guildId, {
-                limit: Math.min(limit, openTotal - offset),
-                offset
+                limit: Math.max(openTotal, 1),
+                offset: 0
             });
-            tickets.push(...openTickets.map((ticket) => ({ ...ticket, status: "open", transcriptAvailable: false })));
-            if (tickets.length < limit) {
-                tickets.push(...sortedClosedTickets.slice(0, limit - tickets.length));
-            }
+            const allTickets = [
+                ...openTickets.map((ticket) => ({ ...ticket, status: "open", transcriptAvailable: false })),
+                ...sortedClosedTickets
+            ];
+            const matchingTickets = allTickets.filter(ticket => matchesColumnFilters(ticket, filters, {
+                status: row => row.status,
+                ticket: row => `${row.ticketTitle || ""} ${row.ticketDescription || ""} ${row.ticketId}`,
+                owner: row => row.ticketOwner,
+                channel: row => row.channelId,
+                messages: row => `${row.messageCount ?? ""} ${row.attachmentCount ?? ""}`,
+                closed: row => row.closedAt,
+                transcript: row => row.transcriptAvailable ? "available download" : row.status === "open" ? "open channel" : "unavailable"
+            }));
+            total = matchingTickets.length;
+            tickets = matchingTickets.slice(offset, offset + limit);
         } else {
-            tickets.push(...sortedClosedTickets.slice(offset - openTotal, offset - openTotal + limit));
+            total = openTotal + sortedClosedTickets.length;
+            tickets = [];
+            if (offset < openTotal) {
+                const openTickets = await access.bot.database.getTicketsByGuild(access.guildId, {
+                    limit: Math.min(limit, openTotal - offset),
+                    offset
+                });
+                tickets.push(...openTickets.map((ticket) => ({ ...ticket, status: "open", transcriptAvailable: false })));
+                if (tickets.length < limit) {
+                    tickets.push(...sortedClosedTickets.slice(0, limit - tickets.length));
+                }
+            } else {
+                tickets.push(...sortedClosedTickets.slice(offset - openTotal, offset - openTotal + limit));
+            }
         }
         response.setHeader("Cache-Control", "no-store");
         return response.json({
@@ -646,6 +710,8 @@ class ModerationDashboard {
         const access = await this.getAuthorizedGuild(request, response);
         if (!access) return;
 
+        const { filters, error } = getColumnFilters(request, ["name", "user", "ticket", "size", "date", "availability"]);
+        if (error) return response.status(400).json({ error });
         const [openAttachments, closedTickets, storedFiles] = await Promise.all([
             access.bot.database.getTicketAttachmentsByGuild(access.guildId),
             this.getClosedTickets(access.guildId),
@@ -692,6 +758,16 @@ class ModerationDashboard {
             const leftDate = Date.parse(left.orderDate || left.currentTime || "") || 0;
             return rightDate - leftDate;
         });
+        const filteredRecords = Object.keys(filters).length
+            ? records.filter(attachment => matchesColumnFilters(attachment, filters, {
+                name: item => item.name,
+                user: item => item.username,
+                ticket: item => `${item.ticketTitle || ""} ${item.ticketId}`,
+                size: item => `${item.size ?? ""} ${this.formatAttachmentSize(item.size)}`,
+                date: item => item.currentTime || item.orderDate,
+                availability: item => item.fileAvailable ? "available" : "expired"
+            }))
+            : records;
         const page = this.getPage(request);
         const limit = 50;
         const offset = (page - 1) * limit;
@@ -699,10 +775,22 @@ class ModerationDashboard {
         return response.json({
             page,
             limit,
-            total: records.length,
-            pages: Math.max(1, Math.ceil(records.length / limit)),
-            attachments: records.slice(offset, offset + limit)
+            total: filteredRecords.length,
+            pages: Math.max(1, Math.ceil(filteredRecords.length / limit)),
+            attachments: filteredRecords.slice(offset, offset + limit)
         });
+    }
+
+    formatAttachmentSize(size) {
+        if (!Number.isFinite(Number(size)) || Number(size) < 0) return "";
+        const units = ["B", "KB", "MB", "GB"];
+        let value = Number(size);
+        let unit = 0;
+        while (value >= 1024 && unit < units.length - 1) {
+            value /= 1024;
+            unit++;
+        }
+        return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
     }
 
     formatTicketAttachment(attachment, availableFiles, guildId, ticketId) {
@@ -870,6 +958,8 @@ class ModerationDashboard {
         const access = await this.getAuthorizedGuild(request, response);
         if (!access) return;
 
+        const { filters, error } = getColumnFilters(request, ["date", "operation", "user", "channel", "details"]);
+        if (error) return response.status(400).json({ error });
         const page = this.getPage(request);
         const eventType = typeof request.query.eventType === "string" && request.query.eventType.length <= 60
             ? request.query.eventType
@@ -877,8 +967,8 @@ class ModerationDashboard {
         const limit = 50;
         const offset = (page - 1) * limit;
         const [rows, total] = await Promise.all([
-            access.bot.database.getModerationLogs(access.guildId, { limit, offset, eventType }),
-            access.bot.database.countModerationLogs(access.guildId, eventType)
+            access.bot.database.getModerationLogs(access.guildId, { limit, offset, eventType, filters }),
+            access.bot.database.countModerationLogs(access.guildId, eventType, filters)
         ]);
         response.setHeader("Cache-Control", "no-store");
         return response.json({
@@ -890,58 +980,12 @@ class ModerationDashboard {
         });
     }
 
-    async recordClientInteractions(request, response) {
-        const access = await this.getAuthorizedGuild(request, response);
-        if (!access) return;
-
-        const events = request.body && request.body.events;
-        if (!Array.isArray(events) || events.length < 1 || events.length > 25) {
-            return response.status(400).json({ error: "Provide between 1 and 25 dashboard interactions." });
-        }
-        for (const event of events) {
-            if (!event || ![
-                "click", "dblclick", "auxclick", "input", "change", "submit", "reset",
-                "keydown", "keyup", "focusin", "focusout", "pointerdown", "pointerup",
-                "touchstart", "touchend", "contextmenu", "copy", "cut", "paste",
-                "dragstart", "dragend", "drop", "wheel", "popstate", "hashchange"
-            ].includes(event.type)) {
-                return response.status(400).json({ error: "A dashboard interaction has an invalid event type." });
-            }
-            const target = event.target || {};
-            const details = {
-                type: event.type,
-                target: {
-                    id: typeof target.id === "string" ? target.id.slice(0, 100) : null,
-                    tag: typeof target.tag === "string" ? target.tag.slice(0, 30) : null,
-                    role: typeof target.role === "string" ? target.role.slice(0, 40) : null,
-                    name: typeof target.name === "string" ? target.name.slice(0, 100) : null,
-                    controlType: typeof target.controlType === "string" ? target.controlType.slice(0, 30) : null,
-                    tab: typeof target.tab === "string" ? target.tab.slice(0, 60) : null
-                },
-                valueLength: Number.isSafeInteger(target.valueLength) && target.valueLength >= 0
-                    ? Math.min(target.valueLength, 10000)
-                    : null,
-                clientTimestamp: Number.isSafeInteger(event.timestamp) ? event.timestamp : null
-            };
-            await access.bot.database.addDashboardLog({
-                createdAt: Date.now(),
-                guildId: access.guildId,
-                userId: access.current.session.user.id,
-                username: access.current.session.user.global_name || access.current.session.user.username,
-                action: `UI ${event.type}`,
-                method: "CLIENT",
-                path: "/",
-                status: 200,
-                details
-            });
-        }
-        return response.status(204).end();
-    }
-
     async listDashboardLogs(request, response) {
         const access = await this.getAuthorizedGuild(request, response);
         if (!access) return;
 
+        const { filters, error } = getColumnFilters(request, ["date", "user", "ip", "action", "request", "status", "details"]);
+        if (error) return response.status(400).json({ error });
         const search = typeof request.query.search === "string" ? request.query.search.trim() : "";
         if (search.length > 200) {
             return response.status(400).json({ error: "Dashboard log search must be 200 characters or fewer." });
@@ -950,8 +994,8 @@ class ModerationDashboard {
         const limit = 50;
         const offset = (page - 1) * limit;
         const [rows, total] = await Promise.all([
-            access.bot.database.getDashboardLogs(access.guildId, { limit, offset, search }),
-            access.bot.database.countDashboardLogs(access.guildId, search)
+            access.bot.database.getDashboardLogs(access.guildId, { limit, offset, search, filters }),
+            access.bot.database.countDashboardLogs(access.guildId, search, filters)
         ]);
         response.setHeader("Cache-Control", "no-store");
         return response.json({
@@ -983,6 +1027,8 @@ class ModerationDashboard {
         const access = await this.getAuthorizedGuild(request, response);
         if (!access) return;
 
+        const { filters, error } = getColumnFilters(request, ["date", "author", "channel", "message"]);
+        if (error) return response.status(400).json({ error });
         const search = typeof request.query.search === "string" ? request.query.search.trim() : "";
         if (search.length > 200) {
             return response.status(400).json({ error: "Message search must be 200 characters or fewer." });
@@ -991,8 +1037,8 @@ class ModerationDashboard {
         const limit = 50;
         const offset = (page - 1) * limit;
         const [rows, total] = await Promise.all([
-            access.bot.database.getCapturedMessages(access.guildId, { limit, offset, search }),
-            access.bot.database.countCapturedMessages(access.guildId, search)
+            access.bot.database.getCapturedMessages(access.guildId, { limit, offset, search, filters }),
+            access.bot.database.countCapturedMessages(access.guildId, search, filters)
         ]);
         response.setHeader("Cache-Control", "no-store");
         return response.json({
@@ -1006,6 +1052,41 @@ class ModerationDashboard {
                 attachments: this.parseCapturedMessageData(row.attachmentsJson, row.messageId, "attachments"),
                 embeds: this.parseCapturedMessageData(row.embedsJson, row.messageId, "embeds")
             }))
+        });
+    }
+
+    async listUsers(request, response) {
+        const access = await this.getAuthorizedGuild(request, response);
+        if (!access) return;
+
+        const { filters, error } = getColumnFilters(request, [
+            "avatar", "username", "id", "accountAge", "interactions", "json"
+        ]);
+        if (error) return response.status(400).json({ error });
+        const page = this.getPage(request);
+        const limit = 50;
+        const offset = (page - 1) * limit;
+        const [rows, total] = await Promise.all([
+            access.bot.database.getDiscordUsers(access.guildId, { limit, offset, filters }),
+            access.bot.database.countDiscordUsers(access.guildId, filters)
+        ]);
+        response.setHeader("Cache-Control", "no-store");
+        return response.json({
+            page,
+            limit,
+            total,
+            pages: Math.max(1, Math.ceil(total / limit)),
+            users: rows.map(row => {
+                let profile;
+                try {
+                    profile = JSON.parse(row.profileJson);
+                } catch (error) {
+                    console.error(`Could not parse Discord user profile ${row.userId}:`, error);
+                    profile = { error: "The stored user profile is invalid." };
+                }
+                const { profileJson, ...user } = row;
+                return { ...user, profile };
+            })
         });
     }
 

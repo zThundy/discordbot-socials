@@ -1,5 +1,36 @@
 const sqlite = require('sqlite3');
 
+function addColumnFilters(query, params, filters, columns) {
+    for (const [field, rawValue] of Object.entries(filters || {})) {
+        const expression = columns[field];
+        if (!expression || typeof rawValue !== "string") continue;
+
+        const include = [];
+        const exclude = [];
+        for (const value of rawValue.split(",")) {
+            const term = value.trim();
+            if (!term) continue;
+            if (term.startsWith("!")) {
+                if (term.length > 1) exclude.push(term.slice(1).trim());
+            } else {
+                include.push(term);
+            }
+        }
+
+        const pattern = (term) => `%${term.replace(/[\\%_]/g, "\\$&")}%`;
+        const searchExpression = `lower(COALESCE(CAST(${expression} AS TEXT), ''))`;
+        if (include.length) {
+            query += ` AND (${include.map(() => `${searchExpression} LIKE ? ESCAPE '\\'`).join(" OR ")})`;
+            params.push(...include.map(term => pattern(term.toLowerCase())));
+        }
+        for (const term of exclude) {
+            query += ` AND ${searchExpression} NOT LIKE ? ESCAPE '\\'`;
+            params.push(pattern(term.toLowerCase()));
+        }
+    }
+    return query;
+}
+
 class SQL {
     constructor() {
         this.db = null;
@@ -129,6 +160,10 @@ class SQL {
                     { name: "ticketDescription", type: "TEXT" }
                 ]);
                 await this._run("CREATE TABLE IF NOT EXISTS ticketCounters (guildId TEXT PRIMARY KEY, lastId INTEGER NOT NULL)");
+                await this._ensureColumns("ticketCounters", [
+                    { name: "guildId", type: "TEXT" },
+                    { name: "lastId", type: "INTEGER" }
+                ]);
                 await this._run("CREATE TABLE IF NOT EXISTS ticketConfig (guildId TEXT, tagRole TEXT, title TEXT, description TEXT, transcriptChannel TEXT, questionTitleRequired INTEGER, questionTitleMinLength INTEGER, questionDescriptionRequired INTEGER, questionDescriptionMinLength INTEGER)");
                 await this._ensureColumns("ticketConfig", [
                     { name: "guildId", type: "TEXT" },
@@ -179,14 +214,87 @@ class SQL {
                     { name: "roleId", type: "TEXT" }
                 ]);
                 await this._run("CREATE TABLE IF NOT EXISTS kickChannelConfig (guildId TEXT PRIMARY KEY, channelId TEXT NOT NULL, messageId TEXT NOT NULL, description TEXT NOT NULL)");
+                await this._ensureColumns("kickChannelConfig", [
+                    { name: "guildId", type: "TEXT" },
+                    { name: "channelId", type: "TEXT" },
+                    { name: "messageId", type: "TEXT" },
+                    { name: "description", type: "TEXT" }
+                ]);
                 await this._run("CREATE TABLE IF NOT EXISTS kickChannelKicks (id INTEGER PRIMARY KEY AUTOINCREMENT, guildId TEXT NOT NULL, userId TEXT NOT NULL, kickedAt INTEGER NOT NULL)");
+                await this._ensureColumns("kickChannelKicks", [
+                    { name: "id", type: "INTEGER" },
+                    { name: "guildId", type: "TEXT" },
+                    { name: "userId", type: "TEXT" },
+                    { name: "kickedAt", type: "INTEGER" }
+                ]);
                 await this._run("CREATE TABLE IF NOT EXISTS moderationLogConfig (guildId TEXT PRIMARY KEY, channelId TEXT NOT NULL)");
+                await this._ensureColumns("moderationLogConfig", [
+                    { name: "guildId", type: "TEXT" },
+                    { name: "channelId", type: "TEXT" }
+                ]);
                 await this._run("CREATE TABLE IF NOT EXISTS moderationLogs (id INTEGER PRIMARY KEY AUTOINCREMENT, guildId TEXT NOT NULL, createdAt INTEGER NOT NULL, eventType TEXT NOT NULL, userId TEXT, channelId TEXT, payloadJson TEXT NOT NULL)");
+                await this._ensureColumns("moderationLogs", [
+                    { name: "id", type: "INTEGER" },
+                    { name: "guildId", type: "TEXT" },
+                    { name: "createdAt", type: "INTEGER" },
+                    { name: "eventType", type: "TEXT" },
+                    { name: "userId", type: "TEXT" },
+                    { name: "channelId", type: "TEXT" },
+                    { name: "payloadJson", type: "TEXT" }
+                ]);
                 await this._run("CREATE INDEX IF NOT EXISTS idx_moderationLogs_guild_created ON moderationLogs (guildId, createdAt DESC, id DESC)");
-                await this._run("CREATE TABLE IF NOT EXISTS dashboardLogs (id INTEGER PRIMARY KEY AUTOINCREMENT, createdAt INTEGER NOT NULL, guildId TEXT, userId TEXT, username TEXT, action TEXT NOT NULL, method TEXT NOT NULL, path TEXT NOT NULL, status INTEGER, detailsJson TEXT NOT NULL)");
+                await this._run("CREATE TABLE IF NOT EXISTS dashboardLogs (id INTEGER PRIMARY KEY AUTOINCREMENT, createdAt INTEGER NOT NULL, guildId TEXT, userId TEXT, username TEXT, ipAddress TEXT, action TEXT NOT NULL, method TEXT NOT NULL, path TEXT NOT NULL, status INTEGER, detailsJson TEXT NOT NULL)");
+                await this._ensureColumns("dashboardLogs", [
+                    { name: "id", type: "INTEGER" },
+                    { name: "createdAt", type: "INTEGER" },
+                    { name: "guildId", type: "TEXT" },
+                    { name: "userId", type: "TEXT" },
+                    { name: "username", type: "TEXT" },
+                    { name: "ipAddress", type: "TEXT" },
+                    { name: "action", type: "TEXT" },
+                    { name: "method", type: "TEXT" },
+                    { name: "path", type: "TEXT" },
+                    { name: "status", type: "INTEGER" },
+                    { name: "detailsJson", type: "TEXT" }
+                ]);
                 await this._run("CREATE INDEX IF NOT EXISTS idx_dashboardLogs_guild_created ON dashboardLogs (guildId, createdAt DESC, id DESC)");
                 await this._run("CREATE TABLE IF NOT EXISTS capturedMessages (messageId TEXT PRIMARY KEY, guildId TEXT NOT NULL, channelId TEXT NOT NULL, channelName TEXT, userId TEXT NOT NULL, authorName TEXT NOT NULL, content TEXT NOT NULL, attachmentsJson TEXT NOT NULL, embedsJson TEXT NOT NULL, createdAt INTEGER NOT NULL, editedAt INTEGER, isBot INTEGER NOT NULL DEFAULT 0)");
+                await this._ensureColumns("capturedMessages", [
+                    { name: "messageId", type: "TEXT" },
+                    { name: "guildId", type: "TEXT" },
+                    { name: "channelId", type: "TEXT" },
+                    { name: "channelName", type: "TEXT" },
+                    { name: "userId", type: "TEXT" },
+                    { name: "authorName", type: "TEXT" },
+                    { name: "content", type: "TEXT" },
+                    { name: "attachmentsJson", type: "TEXT" },
+                    { name: "embedsJson", type: "TEXT" },
+                    { name: "createdAt", type: "INTEGER" },
+                    { name: "editedAt", type: "INTEGER" },
+                    { name: "isBot", type: "INTEGER" }
+                ]);
                 await this._run("CREATE INDEX IF NOT EXISTS idx_capturedMessages_guild_created ON capturedMessages (guildId, createdAt DESC, messageId DESC)");
+                await this._run("CREATE TABLE IF NOT EXISTS discordUsers (guildId TEXT NOT NULL, userId TEXT NOT NULL, username TEXT NOT NULL, globalName TEXT, displayName TEXT, avatarUrl TEXT, accountCreatedAt INTEGER, joinedAt TEXT, bot INTEGER NOT NULL DEFAULT 0, messagesSent INTEGER NOT NULL DEFAULT 0, interactionsSent INTEGER NOT NULL DEFAULT 0, voiceTimeMs INTEGER NOT NULL DEFAULT 0, voiceStartedAt INTEGER, voiceChannelId TEXT, lastActivityAt INTEGER NOT NULL, profileJson TEXT NOT NULL, PRIMARY KEY (guildId, userId))");
+                await this._ensureColumns("discordUsers", [
+                    { name: "guildId", type: "TEXT" },
+                    { name: "userId", type: "TEXT" },
+                    { name: "username", type: "TEXT" },
+                    { name: "globalName", type: "TEXT" },
+                    { name: "displayName", type: "TEXT" },
+                    { name: "avatarUrl", type: "TEXT" },
+                    { name: "accountCreatedAt", type: "INTEGER" },
+                    { name: "joinedAt", type: "TEXT" },
+                    { name: "bot", type: "INTEGER" },
+                    { name: "messagesSent", type: "INTEGER" },
+                    { name: "interactionsSent", type: "INTEGER" },
+                    { name: "voiceTimeMs", type: "INTEGER" },
+                    { name: "voiceStartedAt", type: "INTEGER" },
+                    { name: "voiceChannelId", type: "TEXT" },
+                    { name: "lastActivityAt", type: "INTEGER" },
+                    { name: "profileJson", type: "TEXT" }
+                ]);
+                await this._run("CREATE INDEX IF NOT EXISTS idx_discordUsers_guild_activity ON discordUsers (guildId, lastActivityAt DESC)");
+                await this._backfillDiscordUsers();
                 resolve();
             } catch (err) {
                 console.error(err);
@@ -195,9 +303,9 @@ class SQL {
         });
     }
 
-    _run(stmt) {
+    _run(stmt, params = {}) {
         return new Promise((resolve, reject) => {
-            this.db.run(stmt, {}, (error) => {
+            this.db.run(stmt, params, (error) => {
                 if (error) return reject(error);
                 resolve();
             });
@@ -264,6 +372,188 @@ class SQL {
         }
         if (!columns.has("ticketsPrefix")) {
             await this._run("ALTER TABLE ticketConfig ADD COLUMN ticketsPrefix TEXT DEFAULT 'ticket-'");
+        }
+    }
+
+    async _backfillDiscordUsers() {
+        const users = new Map();
+        const getUser = (guildId, userId) => {
+            const key = `${guildId}:${userId}`;
+            if (!users.has(key)) {
+                users.set(key, {
+                    guildId,
+                    userId,
+                    username: userId,
+                    globalName: null,
+                    displayName: userId,
+                    avatarUrl: null,
+                    accountCreatedAt: null,
+                    joinedAt: null,
+                    bot: false,
+                    messagesSent: 0,
+                    interactionsSent: 0,
+                    voiceTimeMs: 0,
+                    voiceStartedAt: null,
+                    voiceChannelId: null,
+                    lastActivityAt: 0,
+                    profile: null,
+                    lastActivityType: null,
+                    profileUpdatedAt: 0
+                });
+            }
+            return users.get(key);
+        };
+        const applyProfile = (record, payload, occurredAt, activityType) => {
+            const details = payload && payload.operation && payload.operation.details || {};
+            const target = details.target || {};
+            const user = details.user || target.user || target;
+            const member = details.member || (target.user ? target : null);
+            if (user.bot || (!user.id && !user.username)) return;
+            if (occurredAt < record.profileUpdatedAt) return;
+            const createdAt = user.createdAt || user.createdTimestamp;
+            const parsedCreatedAt = typeof createdAt === "number" ? createdAt : Date.parse(createdAt);
+            record.username = user.username || user.tag || record.username;
+            record.globalName = user.globalName || null;
+            record.displayName = member && (member.displayName || member.nickname) || record.globalName || record.username;
+            record.avatarUrl = user.avatarUrl || null;
+            record.accountCreatedAt = Number.isFinite(parsedCreatedAt) ? parsedCreatedAt : null;
+            record.joinedAt = member && member.joinedAt || null;
+            const latestActivity = occurredAt >= record.lastActivityAt
+                ? {
+                    type: activityType,
+                    occurredAt: new Date(occurredAt).toISOString(),
+                    channelId: details.channel && details.channel.id || null
+                }
+                : record.profile && record.profile.lastActivity || null;
+            record.profile = {
+                user,
+                member: member || null,
+                guild: payload.guild || { id: record.guildId },
+                lastActivity: latestActivity
+            };
+            record.profileUpdatedAt = occurredAt;
+            if (occurredAt >= record.lastActivityAt) {
+                record.lastActivityAt = occurredAt;
+                record.lastActivityType = activityType;
+            }
+        };
+
+        const messageGroups = await this._all(
+            `SELECT guildId, userId, authorName, COUNT(*) AS messagesSent, MAX(createdAt) AS lastActivityAt
+             FROM capturedMessages WHERE isBot = 0 GROUP BY guildId, userId`
+        );
+        for (const row of messageGroups) {
+            const record = getUser(row.guildId, row.userId);
+            record.username = row.authorName || record.username;
+            record.displayName = row.authorName || record.displayName;
+            record.messagesSent = row.messagesSent;
+            record.lastActivityAt = row.lastActivityAt;
+            record.lastActivityType = "message";
+            record.profile = {
+                user: { id: row.userId, username: record.username },
+                member: null,
+                guild: { id: row.guildId },
+                lastActivity: {
+                    type: "message",
+                    occurredAt: new Date(row.lastActivityAt).toISOString(),
+                    channelId: null
+                }
+            };
+        }
+
+        const interactions = await this._all(
+            `SELECT latest.guildId, latest.userId, latest.createdAt, latest.payloadJson, totals.interactionsSent
+             FROM moderationLogs latest
+             JOIN (
+                 SELECT guildId, userId, COUNT(*) AS interactionsSent, MAX(createdAt) AS latestAt
+                 FROM moderationLogs
+                 WHERE eventType = 'interaction' AND userId IS NOT NULL
+                 GROUP BY guildId, userId
+             ) totals ON totals.guildId = latest.guildId AND totals.userId = latest.userId
+                 AND totals.latestAt = latest.createdAt
+             WHERE latest.eventType = 'interaction'
+                 AND latest.id = (
+                     SELECT MAX(newest.id) FROM moderationLogs newest
+                     WHERE newest.guildId = latest.guildId AND newest.userId = latest.userId
+                         AND newest.eventType = 'interaction' AND newest.createdAt = latest.createdAt
+                 )`
+        );
+        for (const row of interactions) {
+            let payload;
+            try {
+                payload = JSON.parse(row.payloadJson);
+            } catch (error) {
+                console.error(`Could not backfill interaction profile ${row.userId}:`, error);
+                continue;
+            }
+            const record = getUser(row.guildId, row.userId);
+            record.interactionsSent = row.interactionsSent;
+            applyProfile(record, payload, row.createdAt, "interaction");
+        }
+
+        const voiceLogs = await this._all(
+            `SELECT guildId, userId, createdAt, eventType, channelId, payloadJson
+             FROM moderationLogs
+             WHERE eventType IN ('voice.join', 'voice.leave', 'voice.move') AND userId IS NOT NULL
+             ORDER BY guildId, userId, createdAt, id`
+        );
+        for (const row of voiceLogs) {
+            const record = getUser(row.guildId, row.userId);
+            let payload;
+            try {
+                payload = JSON.parse(row.payloadJson);
+            } catch (error) {
+                console.error(`Could not backfill voice activity ${row.userId}:`, error);
+                continue;
+            }
+            const details = payload.operation && payload.operation.details || {};
+            const fromChannel = details.from && details.from.id || null;
+            const toChannel = details.to && details.to.id || null;
+            if (record.voiceStartedAt !== null && record.voiceChannelId !== toChannel) {
+                record.voiceTimeMs += Math.max(0, row.createdAt - record.voiceStartedAt);
+            }
+            if (row.eventType === "voice.leave") {
+                record.voiceStartedAt = null;
+                record.voiceChannelId = null;
+            } else {
+                record.voiceStartedAt = row.createdAt;
+                record.voiceChannelId = toChannel || row.channelId || fromChannel;
+            }
+            applyProfile(record, payload, row.createdAt, row.eventType);
+        }
+
+        for (const record of users.values()) {
+            if (record.lastActivityAt <= 0 || !record.profile) continue;
+            record.profile.lastActivity = {
+                type: record.lastActivityType,
+                occurredAt: new Date(record.lastActivityAt).toISOString(),
+                channelId: record.lastActivityType && record.lastActivityType.startsWith("voice.")
+                    ? record.voiceChannelId
+                    : record.profile.lastActivity.channelId || null
+            };
+            await this._run(
+                `INSERT OR IGNORE INTO discordUsers
+                    (guildId, userId, username, globalName, displayName, avatarUrl, accountCreatedAt, joinedAt, bot,
+                     messagesSent, interactionsSent, voiceTimeMs, voiceStartedAt, voiceChannelId, lastActivityAt, profileJson)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    record.guildId,
+                    record.userId,
+                    record.username,
+                    record.globalName,
+                    record.displayName,
+                    record.avatarUrl,
+                    record.accountCreatedAt,
+                    record.joinedAt,
+                    record.messagesSent,
+                    record.interactionsSent,
+                    record.voiceTimeMs,
+                    record.voiceStartedAt,
+                    record.voiceChannelId,
+                    record.lastActivityAt,
+                    JSON.stringify(record.profile)
+                ]
+            );
         }
     }
 
@@ -1124,7 +1414,7 @@ class SQL {
         });
     }
 
-    getModerationLogs(guildId, { limit, offset, eventType }) {
+    getModerationLogs(guildId, { limit, offset, eventType, filters = {} }) {
         return new Promise((resolve, reject) => {
             const params = [guildId];
             let query = "SELECT id, createdAt, eventType, userId, channelId, payloadJson FROM moderationLogs WHERE guildId = ?";
@@ -1132,6 +1422,13 @@ class SQL {
                 query += " AND eventType = ?";
                 params.push(eventType);
             }
+            query = addColumnFilters(query, params, filters, {
+                date: "strftime('%Y-%m-%d %H:%M', createdAt / 1000, 'unixepoch')",
+                operation: "eventType || ' ' || payloadJson",
+                user: "userId || ' ' || payloadJson",
+                channel: "channelId || ' ' || payloadJson",
+                details: "payloadJson"
+            });
             query += " ORDER BY createdAt DESC, id DESC LIMIT ? OFFSET ?";
             params.push(limit, offset);
             this.db.all(query, params, (err, rows) => {
@@ -1141,7 +1438,7 @@ class SQL {
         });
     }
 
-    countModerationLogs(guildId, eventType) {
+    countModerationLogs(guildId, eventType, filters = {}) {
         return new Promise((resolve, reject) => {
             const params = [guildId];
             let query = "SELECT COUNT(*) AS count FROM moderationLogs WHERE guildId = ?";
@@ -1149,6 +1446,13 @@ class SQL {
                 query += " AND eventType = ?";
                 params.push(eventType);
             }
+            query = addColumnFilters(query, params, filters, {
+                date: "strftime('%Y-%m-%d %H:%M', createdAt / 1000, 'unixepoch')",
+                operation: "eventType || ' ' || payloadJson",
+                user: "userId || ' ' || payloadJson",
+                channel: "channelId || ' ' || payloadJson",
+                details: "payloadJson"
+            });
             this.db.get(query, params, (err, row) => {
                 if (err) return reject(err);
                 resolve(row.count);
@@ -1156,17 +1460,18 @@ class SQL {
         });
     }
 
-    addDashboardLog({ createdAt, guildId, userId, username, action, method, path, status, details }) {
+    addDashboardLog({ createdAt, guildId, userId, username, ipAddress, action, method, path, status, details }) {
         return new Promise((resolve, reject) => {
             this.db.run(
                 `INSERT INTO dashboardLogs
-                    (createdAt, guildId, userId, username, action, method, path, status, detailsJson)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    (createdAt, guildId, userId, username, ipAddress, action, method, path, status, detailsJson)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     createdAt,
                     guildId || null,
                     userId || null,
                     username || null,
+                    ipAddress || null,
                     action,
                     method,
                     path,
@@ -1181,15 +1486,24 @@ class SQL {
         });
     }
 
-    getDashboardLogs(guildId, { limit, offset, search }) {
+    getDashboardLogs(guildId, { limit, offset, search, filters = {} }) {
         return new Promise((resolve, reject) => {
             const params = [guildId];
-            let query = "SELECT id, createdAt, guildId, userId, username, action, method, path, status, detailsJson FROM dashboardLogs WHERE (guildId = ? OR guildId IS NULL)";
+            let query = "SELECT id, createdAt, guildId, userId, username, ipAddress, action, method, path, status, detailsJson FROM dashboardLogs WHERE (guildId = ? OR guildId IS NULL) AND method != 'CLIENT' AND path LIKE '/api/%'";
             if (search) {
-                query += " AND (action LIKE ? OR username LIKE ? OR userId LIKE ? OR path LIKE ? OR detailsJson LIKE ?)";
+                query += " AND (action LIKE ? OR username LIKE ? OR userId LIKE ? OR ipAddress LIKE ? OR path LIKE ? OR detailsJson LIKE ?)";
                 const searchPattern = `%${search}%`;
-                params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
+                params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
             }
+            query = addColumnFilters(query, params, filters, {
+                date: "strftime('%Y-%m-%d %H:%M', createdAt / 1000, 'unixepoch')",
+                user: "username || ' ' || userId",
+                ip: "ipAddress",
+                action: "action",
+                request: "method || ' ' || path",
+                status: "status",
+                details: "detailsJson"
+            });
             query += " ORDER BY createdAt DESC, id DESC LIMIT ? OFFSET ?";
             params.push(limit, offset);
             this.db.all(query, params, (error, rows) => {
@@ -1199,15 +1513,24 @@ class SQL {
         });
     }
 
-    countDashboardLogs(guildId, search) {
+    countDashboardLogs(guildId, search, filters = {}) {
         return new Promise((resolve, reject) => {
             const params = [guildId];
-            let query = "SELECT COUNT(*) AS count FROM dashboardLogs WHERE (guildId = ? OR guildId IS NULL)";
+            let query = "SELECT COUNT(*) AS count FROM dashboardLogs WHERE (guildId = ? OR guildId IS NULL) AND method != 'CLIENT' AND path LIKE '/api/%'";
             if (search) {
-                query += " AND (action LIKE ? OR username LIKE ? OR userId LIKE ? OR path LIKE ? OR detailsJson LIKE ?)";
+                query += " AND (action LIKE ? OR username LIKE ? OR userId LIKE ? OR ipAddress LIKE ? OR path LIKE ? OR detailsJson LIKE ?)";
                 const searchPattern = `%${search}%`;
-                params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
+                params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
             }
+            query = addColumnFilters(query, params, filters, {
+                date: "strftime('%Y-%m-%d %H:%M', createdAt / 1000, 'unixepoch')",
+                user: "username || ' ' || userId",
+                ip: "ipAddress",
+                action: "action",
+                request: "method || ' ' || path",
+                status: "status",
+                details: "detailsJson"
+            });
             this.db.get(query, params, (error, row) => {
                 if (error) return reject(error);
                 resolve(row.count);
@@ -1252,7 +1575,7 @@ class SQL {
         });
     }
 
-    getCapturedMessages(guildId, { limit, offset, search }) {
+    getCapturedMessages(guildId, { limit, offset, search, filters = {} }) {
         return new Promise((resolve, reject) => {
             const params = [guildId];
             let query = "SELECT messageId, channelId, channelName, userId, authorName, content, attachmentsJson, embedsJson, createdAt, editedAt, isBot FROM capturedMessages WHERE guildId = ?";
@@ -1261,6 +1584,12 @@ class SQL {
                 const searchPattern = `%${search}%`;
                 params.push(searchPattern, searchPattern, searchPattern);
             }
+            query = addColumnFilters(query, params, filters, {
+                date: "strftime('%Y-%m-%d %H:%M', createdAt / 1000, 'unixepoch')",
+                author: "authorName || ' ' || userId",
+                channel: "channelName || ' ' || channelId",
+                message: "content || ' ' || attachmentsJson || ' ' || embedsJson"
+            });
             query += " ORDER BY createdAt DESC, messageId DESC LIMIT ? OFFSET ?";
             params.push(limit, offset);
             this.db.all(query, params, (error, rows) => {
@@ -1270,7 +1599,7 @@ class SQL {
         });
     }
 
-    countCapturedMessages(guildId, search) {
+    countCapturedMessages(guildId, search, filters = {}) {
         return new Promise((resolve, reject) => {
             const params = [guildId];
             let query = "SELECT COUNT(*) AS count FROM capturedMessages WHERE guildId = ?";
@@ -1279,6 +1608,12 @@ class SQL {
                 const searchPattern = `%${search}%`;
                 params.push(searchPattern, searchPattern, searchPattern);
             }
+            query = addColumnFilters(query, params, filters, {
+                date: "strftime('%Y-%m-%d %H:%M', createdAt / 1000, 'unixepoch')",
+                author: "authorName || ' ' || userId",
+                channel: "channelName || ' ' || channelId",
+                message: "content || ' ' || attachmentsJson || ' ' || embedsJson"
+            });
             this.db.get(query, params, (error, row) => {
                 if (error) return reject(error);
                 resolve(row.count);
@@ -1291,6 +1626,119 @@ class SQL {
             this.db.run("DELETE FROM capturedMessages WHERE createdAt < ?", [cutoff], function (error) {
                 if (error) return reject(error);
                 resolve(this.changes);
+            });
+        });
+    }
+
+    recordDiscordUserActivity(profile, activityType, occurredAt, voiceChannelId = null) {
+        const isMessage = activityType === "message";
+        const isInteraction = activityType === "interaction";
+        const isVoice = activityType === "voice";
+        return new Promise((resolve, reject) => {
+            this.db.run(
+                `INSERT INTO discordUsers
+                    (guildId, userId, username, globalName, displayName, avatarUrl, accountCreatedAt, joinedAt, bot,
+                     messagesSent, interactionsSent, voiceTimeMs, voiceStartedAt, voiceChannelId, lastActivityAt, profileJson)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
+                 ON CONFLICT(guildId, userId) DO UPDATE SET
+                    username = excluded.username,
+                    globalName = excluded.globalName,
+                    displayName = excluded.displayName,
+                    avatarUrl = COALESCE(excluded.avatarUrl, discordUsers.avatarUrl),
+                    accountCreatedAt = COALESCE(excluded.accountCreatedAt, discordUsers.accountCreatedAt),
+                    joinedAt = COALESCE(excluded.joinedAt, discordUsers.joinedAt),
+                    bot = excluded.bot,
+                    messagesSent = discordUsers.messagesSent + excluded.messagesSent,
+                    interactionsSent = discordUsers.interactionsSent + excluded.interactionsSent,
+                    voiceTimeMs = discordUsers.voiceTimeMs + CASE
+                        WHEN ? = 1 AND discordUsers.voiceStartedAt IS NOT NULL
+                            AND discordUsers.voiceChannelId IS NOT excluded.voiceChannelId
+                        THEN MAX(0, excluded.lastActivityAt - discordUsers.voiceStartedAt)
+                        ELSE 0
+                    END,
+                    voiceStartedAt = CASE
+                        WHEN ? = 0 THEN discordUsers.voiceStartedAt
+                        WHEN excluded.voiceChannelId IS NULL THEN NULL
+                        WHEN discordUsers.voiceStartedAt IS NULL
+                            OR discordUsers.voiceChannelId IS NOT excluded.voiceChannelId
+                        THEN excluded.lastActivityAt
+                        ELSE discordUsers.voiceStartedAt
+                    END,
+                    voiceChannelId = CASE
+                        WHEN ? = 1 THEN excluded.voiceChannelId
+                        ELSE discordUsers.voiceChannelId
+                    END,
+                    lastActivityAt = MAX(discordUsers.lastActivityAt, excluded.lastActivityAt),
+                    profileJson = excluded.profileJson`,
+                [
+                    profile.guildId,
+                    profile.userId,
+                    profile.username,
+                    profile.globalName,
+                    profile.displayName,
+                    profile.avatarUrl,
+                    profile.accountCreatedAt,
+                    profile.joinedAt,
+                    profile.bot ? 1 : 0,
+                    isMessage ? 1 : 0,
+                    isInteraction ? 1 : 0,
+                    isVoice && voiceChannelId ? occurredAt : null,
+                    isVoice ? voiceChannelId : null,
+                    occurredAt,
+                    profile.profileJson,
+                    isVoice ? 1 : 0,
+                    isVoice ? 1 : 0,
+                    isVoice ? 1 : 0
+                ],
+                (error) => {
+                    if (error) return reject(error);
+                    resolve();
+                }
+            );
+        });
+    }
+
+    getDiscordUsers(guildId, { limit, offset, filters = {} }) {
+        return new Promise((resolve, reject) => {
+            const params = [Date.now(), guildId];
+            let query = `SELECT userId, username, globalName, displayName, avatarUrl, accountCreatedAt, joinedAt,
+                    messagesSent, interactionsSent,
+                    voiceTimeMs + CASE WHEN voiceStartedAt IS NOT NULL
+                        THEN MAX(0, ? - voiceStartedAt) ELSE 0 END AS voiceTimeMs,
+                    voiceStartedAt, voiceChannelId, lastActivityAt, profileJson
+                FROM discordUsers WHERE guildId = ? AND bot = 0`;
+            query = addColumnFilters(query, params, filters, {
+                avatar: "avatarUrl",
+                username: "username || ' ' || COALESCE(globalName, '') || ' ' || COALESCE(displayName, '')",
+                id: "userId",
+                accountAge: "strftime('%Y-%m-%d', accountCreatedAt / 1000, 'unixepoch')",
+                interactions: "CAST(messagesSent AS TEXT) || ' ' || CAST(interactionsSent AS TEXT) || ' ' || CAST(voiceTimeMs AS TEXT)",
+                json: "profileJson"
+            });
+            query += " ORDER BY lastActivityAt DESC, userId ASC LIMIT ? OFFSET ?";
+            params.push(limit, offset);
+            this.db.all(query, params, (error, rows) => {
+                if (error) return reject(error);
+                resolve(rows);
+            });
+        });
+    }
+
+    countDiscordUsers(guildId, filters = {}) {
+        return new Promise((resolve, reject) => {
+            const params = [guildId];
+            let query = "SELECT COUNT(*) AS count FROM discordUsers WHERE guildId = ? AND bot = 0";
+            query = addColumnFilters(query, params, filters, {
+                avatar: "avatarUrl",
+                username: "username || ' ' || COALESCE(globalName, '') || ' ' || COALESCE(displayName, '')",
+                id: "userId",
+                accountAge: "strftime('%Y-%m-%d', accountCreatedAt / 1000, 'unixepoch')",
+                interactions: "CAST(messagesSent AS TEXT) || ' ' || CAST(interactionsSent AS TEXT) || ' ' || CAST(voiceTimeMs AS TEXT)",
+                json: "profileJson"
+            });
+            this.db.get(query, params, (error, row) => {
+                if (error) return reject(error);
+                resolve(row.count);
             });
         });
     }
