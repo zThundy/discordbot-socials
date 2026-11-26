@@ -1,4 +1,5 @@
 const sqlite = require('sqlite3');
+const { randomUUID } = require("crypto");
 
 function addColumnFilters(query, params, filters, columns) {
     for (const [field, rawValue] of Object.entries(filters || {})) {
@@ -15,6 +16,7 @@ function addColumnFilters(query, params, filters, columns) {
             } else {
                 include.push(term);
             }
+
         }
 
         const pattern = (term) => `%${term.replace(/[\\%_]/g, "\\$&")}%`;
@@ -157,15 +159,17 @@ class SQL {
                     { name: "ticketOwner", type: "TEXT" },
                     { name: "ticketId", type: "TEXT" },
                     { name: "ticketTitle", type: "TEXT" },
-                    { name: "ticketDescription", type: "TEXT" }
+                    { name: "ticketDescription", type: "TEXT" },
+                    { name: "ticketConfigId", type: "TEXT" }
                 ]);
                 await this._run("CREATE TABLE IF NOT EXISTS ticketCounters (guildId TEXT PRIMARY KEY, lastId INTEGER NOT NULL)");
                 await this._ensureColumns("ticketCounters", [
                     { name: "guildId", type: "TEXT" },
                     { name: "lastId", type: "INTEGER" }
                 ]);
-                await this._run("CREATE TABLE IF NOT EXISTS ticketConfig (guildId TEXT, tagRole TEXT, title TEXT, description TEXT, transcriptChannel TEXT, questionTitleRequired INTEGER, questionTitleMinLength INTEGER, questionDescriptionRequired INTEGER, questionDescriptionMinLength INTEGER)");
+                await this._run("CREATE TABLE IF NOT EXISTS ticketConfig (configId TEXT, guildId TEXT, tagRole TEXT, title TEXT, description TEXT, transcriptChannel TEXT, questionTitleRequired INTEGER, questionTitleMinLength INTEGER, questionDescriptionRequired INTEGER, questionDescriptionMinLength INTEGER)");
                 await this._ensureColumns("ticketConfig", [
+                    { name: "configId", type: "TEXT" },
                     { name: "guildId", type: "TEXT" },
                     { name: "tagRole", type: "TEXT" },
                     { name: "title", type: "TEXT" },
@@ -178,6 +182,8 @@ class SQL {
                     { name: "ticketsCategoryId", type: "TEXT" },
                     { name: "ticketsPrefix", type: "TEXT" }
                 ]);
+                await this._backfillTicketConfigIds();
+                await this._run("CREATE UNIQUE INDEX IF NOT EXISTS idx_ticketConfig_configId ON ticketConfig (configId)");
                 await this._run("CREATE TABLE IF NOT EXISTS ticketMessages (ticketId TEXT, content TEXT, username TEXT, authorProfile TEXT, currentTime TEXT, color TEXT, orderDate TEXT, messageType TEXT, edited TEXT, messageId TEXT)");
                 await this._ensureColumns("ticketMessages", [
                     { name: "ticketId", type: "TEXT" },
@@ -372,6 +378,13 @@ class SQL {
         }
         if (!columns.has("ticketsPrefix")) {
             await this._run("ALTER TABLE ticketConfig ADD COLUMN ticketsPrefix TEXT DEFAULT 'ticket-'");
+        }
+    }
+
+    async _backfillTicketConfigIds() {
+        const rows = await this._all("SELECT rowid FROM ticketConfig WHERE configId IS NULL OR configId = ''");
+        for (const row of rows) {
+            await this._run("UPDATE ticketConfig SET configId = ? WHERE rowid = ?", [randomUUID(), row.rowid]);
         }
     }
 
@@ -875,11 +888,11 @@ class SQL {
         this.db.run("DELETE FROM tickets WHERE ticketId = $id", { $id: ticketId })
     }
 
-    createTicket(id, guildId, channelId, ownerId, ticketId, title, description) {
+    createTicket(id, guildId, channelId, ownerId, ticketId, title, description, ticketConfigId) {
         console.log("<DATABASE> createTicket call");
         return new Promise((resolve, reject) => {
-            this.db.run(`INSERT INTO tickets (id, guildId, channelId, ticketOwner, ticketId, ticketTitle, ticketDescription)
-                         VALUES ($id, $guildId, $channelId, $ticketOwner, $ticketId, $ticketTitle, $ticketDescription)`,
+            this.db.run(`INSERT INTO tickets (id, guildId, channelId, ticketOwner, ticketId, ticketTitle, ticketDescription, ticketConfigId)
+                         VALUES ($id, $guildId, $channelId, $ticketOwner, $ticketId, $ticketTitle, $ticketDescription, $ticketConfigId)`,
                 {
                     $id: id,
                     $guildId: guildId,
@@ -887,7 +900,8 @@ class SQL {
                     $ticketOwner: ownerId,
                     $ticketId: ticketId,
                     $ticketTitle: title,
-                    $ticketDescription: description
+                    $ticketDescription: description,
+                    $ticketConfigId: ticketConfigId
                 }, (err, row) => {
                     if (err) reject(err);
                     resolve();
@@ -897,28 +911,41 @@ class SQL {
 
     createTicketConfig(guildId, tagRole, title, description, transcriptChannel, ticketsCategoryId = '0', questionTitleRequired, questionTitleMinLength, questionDescriptionRequired, questionDescriptionMinLength, ticketsPrefix = 'ticket-') {
         console.log("<DATABASE> createTicketConfig call");
+        const configId = randomUUID();
         return new Promise((resolve, reject) => {
-            this.db.run("INSERT INTO ticketConfig (guildId, tagRole, title, description, transcriptChannel, ticketsCategoryId, questionTitleRequired, questionTitleMinLength, questionDescriptionRequired, questionDescriptionMinLength, ticketsPrefix) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [guildId, tagRole, title, description, transcriptChannel, ticketsCategoryId, questionTitleRequired, questionTitleMinLength, questionDescriptionRequired, questionDescriptionMinLength, ticketsPrefix], (err, row) => {
-                if (err) reject(err);
-                resolve();
+            this.db.run("INSERT INTO ticketConfig (configId, guildId, tagRole, title, description, transcriptChannel, ticketsCategoryId, questionTitleRequired, questionTitleMinLength, questionDescriptionRequired, questionDescriptionMinLength, ticketsPrefix) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [configId, guildId, tagRole, title, description, transcriptChannel, ticketsCategoryId, questionTitleRequired, questionTitleMinLength, questionDescriptionRequired, questionDescriptionMinLength, ticketsPrefix], (err) => {
+                if (err) return reject(err);
+                resolve(configId);
             });
         });
     }
 
-    getTicketConfig(guildId) {
+    getTicketConfigs(guildId) {
+        return this._all("SELECT * FROM ticketConfig WHERE guildId = ? ORDER BY rowid ASC", [guildId]);
+    }
+
+    getTicketConfig(guildId, configId) {
         console.log("<DATABASE> getTicketConfig call");
         return new Promise((resolve, reject) => {
-            this.db.all("SELECT * FROM ticketConfig WHERE guildId = ?", [guildId], (err, rows) => {
-                if (err) reject(err);
+            const query = configId
+                ? "SELECT * FROM ticketConfig WHERE guildId = ? AND configId = ?"
+                : "SELECT * FROM ticketConfig WHERE guildId = ? ORDER BY rowid ASC";
+            const params = configId ? [guildId, configId] : [guildId];
+            this.db.all(query, params, (err, rows) => {
+                if (err) return reject(err);
                 if (rows[0]) resolve(rows[0]);
                 else resolve(null);
             })
         })
     }
 
-    deleteTicketConfig(guildId) {
+    deleteTicketConfig(guildId, configId) {
         console.log("<DATABASE> deleteTicketConfig call");
-        this.db.run("DELETE FROM ticketConfig WHERE guildId = $id", { $id: guildId });
+        return this._run("DELETE FROM ticketConfig WHERE guildId = ? AND configId = ?", [guildId, configId]);
+    }
+
+    updateTicketConfigCategory(configId, categoryId) {
+        return this._run("UPDATE ticketConfig SET ticketsCategoryId = ? WHERE configId = ?", [categoryId, configId]);
     }
 
     /**

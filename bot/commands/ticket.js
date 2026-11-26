@@ -82,7 +82,16 @@ function buildTicketSetupRequirementsReply(guild, setupState) {
     };
 }
 
-function buildTicketMessagePayload(res) {
+function formatTicketConfigList(configs) {
+    return configs.map(config => `• **${config.title || "Untitled"}** — \`${config.configId}\``).join("\n");
+}
+
+function registerTicketPrefix(guildId, prefix) {
+    if (!channelPrefixes.has(guildId)) channelPrefixes.set(guildId, new Set());
+    channelPrefixes.get(guildId).add(prefix);
+}
+
+function buildTicketMessagePayload(res, configId) {
     return {
         embeds: [{
             title: res.title,
@@ -94,7 +103,7 @@ function buildTicketMessagePayload(res) {
             }
         }],
         components: [new Button()
-            .setCustomId("ticketcreate;" + internalId)
+            .setCustomId("ticketcreate;" + internalId + ";" + configId)
             .setLabel("Open ticket")
             .setEmoji("📨")
             .setStyle("secondary")
@@ -111,8 +120,16 @@ function build(guild) {
         option.setName('action')
             .setDescription("Choose the action to perform")
             .setRequired(true)
-            .addChoices({ name: "📬 Setup", value: "setuptagrole" })
-            .addChoices({ name: '✅ Send in channel', value: 'setupchannel' });
+            .addChoices({ name: "📬 Create setup", value: "setuptagrole" })
+            .addChoices({ name: '✅ Send in channel', value: 'setupchannel' })
+            .addChoices({ name: "📋 List configurations", value: "listconfigs" })
+            .addChoices({ name: "🗑️ Delete configuration", value: "deleteconfig" });
+        return option;
+    });
+    command.addStringOption((option) => {
+        option.setName("config_id")
+            .setDescription("Configuration ID (use List configurations to find it)")
+            .setRequired(false);
         return option;
     });
     command.setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator);
@@ -125,45 +142,72 @@ function execute(interaction, database) {
     const args = interaction.options;
     const channel = interaction.channel;
     const guild = interaction.guild;
+    const configId = args.getString("config_id");
 
     switch (args.getString('action')) {
         case 'setupchannel':
-            database.getTicketConfig(guild.id)
-                .then((res) => {
-                    if (res) {
-                        const embed = {
-                            title: res.title,
-                            description: res.description,
-                            color: 0x00FF00,
-                            timestamp: new Date().toISOString(),
-                            footer: {
-                                text: "Made with ❤️ by zThundy__"
-                            }
-                        };
-
-                        const button = new Button()
-                            .setCustomId("ticketcreate;" + internalId)
-                            .setLabel("Open ticket")
-                            .setEmoji("📨")
-                            .setStyle("secondary")
-                            .build();
-
-                        interaction.reply({
-                            content: "",
-                            components: [button],
-                            embeds: [embed]
-                        }).catch(console.error);
-                    } else {
-                        interaction.reply({
-                            content: 'Please setup the ticketing system first using the **/ticket** command',
-                        }).catch(console.error);
-                    }
+            Promise.all([
+                database.getTicketConfigs(guild.id),
+                configId ? database.getTicketConfig(guild.id, configId) : Promise.resolve(null)
+            ]).then(([configs, selectedConfig]) => {
+                if (!configs.length) {
+                    return interaction.reply({ content: "No ticket configurations found. Use **Create setup** first.", flags: MessageFlags.Ephemeral });
+                }
+                if (configId && !selectedConfig) {
+                    return interaction.reply({ content: "Configuration not found. Use **List configurations** to see available IDs.", flags: MessageFlags.Ephemeral });
+                }
+                if (!selectedConfig && configs.length > 1) {
+                    return interaction.reply({
+                        content: `More than one configuration exists. Run **/ticket action: List configurations** and pass the desired ID in \`config_id\`.\n${formatTicketConfigList(configs)}`,
+                        flags: MessageFlags.Ephemeral
+                    });
+                }
+                const config = selectedConfig || configs[0];
+                interaction.reply({
+                    embeds: [{ title: config.title, description: config.description, color: 0x00FF00 }],
+                    components: [buildTicketMessagePayload(config, config.configId).components[0]]
                 }).catch(console.error);
+            }).catch(error => {
+                console.error(error);
+                interaction.reply({ content: "Could not load ticket configurations.", flags: MessageFlags.Ephemeral }).catch(console.error);
+            });
+            break;
+        case "listconfigs":
+            database.getTicketConfigs(guild.id).then(configs => {
+                interaction.reply({
+                    content: configs.length ? formatTicketConfigList(configs) : "No ticket configurations found.",
+                    flags: MessageFlags.Ephemeral
+                }).catch(console.error);
+            }).catch(error => {
+                console.error(error);
+                interaction.reply({ content: "Could not load ticket configurations.", flags: MessageFlags.Ephemeral }).catch(console.error);
+            });
+            break;
+        case "deleteconfig":
+            database.getTicketConfigs(guild.id).then(async configs => {
+                if (!configs.length) {
+                    return interaction.reply({ content: "No ticket configurations to delete.", flags: MessageFlags.Ephemeral });
+                }
+                if (!configId) {
+                    return interaction.reply({
+                        content: `Pass the configuration ID in \`config_id\` to delete it:\n${formatTicketConfigList(configs)}`,
+                        flags: MessageFlags.Ephemeral
+                    });
+                }
+                const config = configs.find(item => item.configId === configId);
+                if (!config) {
+                    return interaction.reply({ content: "Configuration not found. Use **List configurations** to see available IDs.", flags: MessageFlags.Ephemeral });
+                }
+                await database.deleteTicketConfig(guild.id, configId);
+                interaction.reply({ content: `Deleted ticket configuration **${config.title}** (\`${configId}\`).`, flags: MessageFlags.Ephemeral }).catch(console.error);
+            }).catch(error => {
+                console.error(error);
+                interaction.reply({ content: "Could not delete the ticket configuration.", flags: MessageFlags.Ephemeral }).catch(console.error);
+            });
             break;
         case "setuptagrole":
             try {
                 // start a message-based flow to ask for title and description, then proceed with select menus for roles/channel
-                database.deleteTicketConfig(guild.id);
                 const setupState = {
                     title: "",
                     description: "",
@@ -444,7 +488,7 @@ async function interaction(interaction, database, _, config) {
                     }
                 }
 
-                await database.createTicketConfig(
+                const configId = await database.createTicketConfig(
                     guild.id,
                     JSON.stringify(roles),
                     cache.title,
@@ -459,13 +503,14 @@ async function interaction(interaction, database, _, config) {
                 );
 
                 try {
-                    await targetChannel.send(buildTicketMessagePayload(cache));
+                    await targetChannel.send(buildTicketMessagePayload(cache, configId));
                 } catch (sendError) {
                     console.error(sendError);
-                    await database.deleteTicketConfig(guild.id);
+                    await database.deleteTicketConfig(guild.id, configId);
                     return interaction.reply({ content: "The configuration was not saved because I couldn't send the message to that channel.", flags: MessageFlags.Ephemeral }).catch(console.error);
                 }
 
+                registerTicketPrefix(guild.id, cache.ticketsPrefix || "ticket-");
                 setupCache.delete(guild.id);
                 await interaction.reply({ content: `Ticket message sent in <#${targetChannel.id}> and configuration saved.`, flags: MessageFlags.Ephemeral });
             } catch (e) {
@@ -519,6 +564,7 @@ async function interaction(interaction, database, _, config) {
                     cache.descriptionMinLength ?? DEFAULT_TICKET_DESCRIPTION_MIN_LENGTH,
                     cache.ticketsPrefix || 'ticket-'
                 ).then(() => {
+                    registerTicketPrefix(guild.id, cache.ticketsPrefix || "ticket-");
                     // ensure tickets category exists (if it wasn't set above)
                     if (!guild.channels.cache.find(c => c.name.toLowerCase().trim() === "tickets")) {
                         guild.channels.create({
@@ -540,9 +586,10 @@ async function interaction(interaction, database, _, config) {
         case "openticketdata":
             const title = interaction.fields.getTextInputValue('titleofquestion');
             const description = interaction.fields.getTextInputValue('descriptionofquestion');
+            const ticketConfigId = interaction.customId.split(";")[2];
 
             interaction.reply({ content: "Opening ticket...", flags: MessageFlags.Ephemeral }).then(() => {
-                database.getTicketConfig(guild.id).then((res) => {
+                database.getTicketConfig(guild.id, ticketConfigId).then((res) => {
                     if (res) {
                         database.getNextTicketId(guild.id).then(async id => {
                             id = Number(id).pad(4);
@@ -628,21 +675,7 @@ async function interaction(interaction, database, _, config) {
                                         parentId = createdCategory.id;
                                         // update stored ticket config with new category id
                                         try {
-                                            // remove old config row and recreate with same values plus new category id
-                                            await database.deleteTicketConfig(guild.id);
-                                            await database.createTicketConfig(
-                                                guild.id,
-                                                res.tagRole,
-                                                res.title,
-                                                res.description,
-                                                res.transcriptChannel || '0',
-                                                parentId,
-                                                res.questionTitleRequired,
-                                                res.questionTitleMinLength,
-                                                res.questionDescriptionRequired,
-                                                res.questionDescriptionMinLength,
-                                                res.ticketsPrefix || 'ticket-'
-                                            );
+                                            await database.updateTicketConfigCategory(res.configId, parentId);
                                         } catch (dbErr) {
                                             console.error("Failed to persist ticketsCategoryId to DB:", dbErr);
                                         }
@@ -654,7 +687,7 @@ async function interaction(interaction, database, _, config) {
 
                             // create the channel
                             const prefix = (res && res.ticketsPrefix) ? res.ticketsPrefix : 'ticket-';
-                            channelPrefixes.set(guild.id, prefix);
+                            registerTicketPrefix(guild.id, prefix);
                             guild.channels.create({
                                 name: prefix + id,
                                 type: ChannelType.GuildText,
@@ -663,7 +696,7 @@ async function interaction(interaction, database, _, config) {
                                 parent: parentId
                             }).then(channel => {
                                 interaction.editReply({ content: "📨 <#" + channel.id + "> opened!", components: [], flags: MessageFlags.Ephemeral }).catch(console.error);
-                                database.createTicket(id, guild.id, channel.id, user.id, ticketId, title, description);
+                                database.createTicket(id, guild.id, channel.id, user.id, ticketId, title, description, res.configId);
 
                                 const button = new Button()
                                     .setCustomId("ticketclose;" + internalId + ";" + ticketId)
@@ -701,7 +734,7 @@ async function interaction(interaction, database, _, config) {
             const avatar = interaction.client.user.avatarURL();
             database.getAllTicketMessages(ticketId).then((messages) => {
                 database.getTicket(ticketId).then((ticket) => {
-                    database.getTicketConfig(guild.id).then((ticketConfig) => {
+                    database.getTicketConfig(guild.id, ticket.ticketConfigId).then((ticketConfig) => {
                         const embed = {
                             color: 0xFF0000,
                             title: "The ticket will be deleted in 5 seconds...",
@@ -741,9 +774,10 @@ async function interaction(interaction, database, _, config) {
             // add timeout to the user
             timeout.addTimeout(user, { guild: guild });
 
-            database.getTicketConfig(guild.id).then((res) => {
+            const requestedConfigId = interaction.customId.split(";")[2];
+            database.getTicketConfig(guild.id, requestedConfigId).then((res) => {
                 if (!res) {
-                    interaction.reply({ content: 'Please setup the ticketing system first using the **/ticket** command', flags: MessageFlags.Ephemeral }).catch(console.error);
+                    interaction.reply({ content: "This ticket configuration is no longer available. Contact a server administrator.", flags: MessageFlags.Ephemeral }).catch(console.error);
                     return;
                 }
 
@@ -772,7 +806,7 @@ async function interaction(interaction, database, _, config) {
                         id: "descriptionofquestion"
                     })
                     .setTitle("Explain the issue...")
-                    .setCustomId("openticketdata;" + internalId)
+                    .setCustomId("openticketdata;" + internalId + ";" + res.configId)
                     .build();
 
                 interaction.showModal(modal).catch(console.error);
@@ -782,8 +816,8 @@ async function interaction(interaction, database, _, config) {
 }
 
 function message(event, message, newMessage, { database, uploader }) {
-    const channelPrefix = channelPrefixes.get(message.guild.id) || "ticket-";
-    if (!message.channel.name.includes(channelPrefix) || !message.channel.topic) return;
+    const channelPrefixesForGuild = channelPrefixes.get(message.guild.id) || new Set(["ticket-"]);
+    if (![...channelPrefixesForGuild].some(prefix => message.channel.name.startsWith(prefix)) || !message.channel.topic) return;
 
     return message.guild.members.fetch(message.author.id).then(async member => {
         const currentMessage = event === "messageUpdate" && newMessage ? newMessage : message;
@@ -959,10 +993,11 @@ function init(database, extra) {
     console.log(" > Initializing ticket module...");
     const client = extra.client;
     for (const guild of client.guilds.cache.values()) {
-        database.getTicketConfig(guild.id).then((res) => {
-            if (res && res.ticketsPrefix) {
-                console.log(`<TICKET> Loaded ticket prefix for guild ${guild.id}: ${res.ticketsPrefix}`);
-                channelPrefixes.set(guild.id, res.ticketsPrefix);
+        database.getTicketConfigs(guild.id).then(configs => {
+            for (const config of configs) {
+                if (!config.ticketsPrefix) continue;
+                console.log(`<TICKET> Loaded ticket prefix for guild ${guild.id}: ${config.ticketsPrefix}`);
+                registerTicketPrefix(guild.id, config.ticketsPrefix);
             }
         }).catch(console.error);
     }

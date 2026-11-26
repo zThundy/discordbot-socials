@@ -127,15 +127,17 @@ The dashboard also has **Ticket attachments** and **Tickets** tabs. It lists att
 
 All operations sent to the moderator log system are persisted to `bot/data/main.db`, even when no `/modlogs` channel is configured or its channel is unavailable. Stored details include Discord user/member, server and channel snapshots, operation metadata, message content and attachments where available, and before/after state for message edits. Interaction option values are stored in the JSON record. Treat this database as sensitive, restrict access to its backups, and use HTTPS when exposing the dashboard publicly. Dashboard sessions are held in memory and expire after 12 hours; restarting the bot signs users out. Log entries currently have no automatic retention limit.
 
-#### `/ticket action:<Setup|Send in channel>`
+#### `/ticket action:<Create setup|Send in channel|List configurations|Delete configuration> [config_id:<id>]`
 
 Configures or publishes the ticket-opening panel.
 
-- **Setup** guides you through the panel title and description, whether the ticket form fields are required, their minimum lengths, and the ticket-channel prefix. You can also select staff roles and an optional transcript channel.
+- **Create setup** always creates a new configuration without replacing existing ones. It guides you through the panel title and description, whether the ticket form fields are required, their minimum lengths, and the ticket-channel prefix. You can also select staff roles and an optional transcript channel.
 - At the end of setup, choose **Finish setup** to save the configuration, or **Send in channel** and provide a text-channel mention or ID to publish the panel there.
-- **Send in channel** publishes the already configured panel in the current channel.
+- **Send in channel** publishes the configured panel in the current channel. If there are multiple configurations, provide the desired `config_id`.
+- **List configurations** shows each configuration's ID.
+- **Delete configuration** displays the available IDs when `config_id` is omitted; run it again with the ID to delete only that configuration.
 
-When a user opens a ticket, the bot creates a private text channel under a `tickets` category. The ticket contains the submitted title and description, and can be closed with its **Close** button. Closing generates an HTML transcript, sends it to the configured transcript channel if one was selected, and deletes the ticket channel.
+Each published panel uses its own configuration when opening tickets. The bot creates a private text channel under a `tickets` category. The ticket contains the submitted title and description, and can be closed with its **Close** button. Closing generates an HTML transcript, sends it to that configuration's transcript channel if one was selected, and deletes the ticket channel.
 
 #### `/kickchannel action:<Enable in this channel|Disable> [message:<text>]`
 
