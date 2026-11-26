@@ -80,6 +80,10 @@ Displays information about the bot, its source repository, and the configured Di
 
 Changes the bot's nickname in the current server. Enter `reset` to restore the bot's default username.
 
+#### `/serverprofile action:<Set avatar and/or banner|Reset avatar and banner> [avatar:<image>] [banner:<image>]`
+
+Sets a server-specific avatar and/or banner for the bot by attaching the desired image to the command. You can update either image independently or both at once; **Reset avatar and banner** clears both server-specific images.
+
 ### Roles and verification
 
 #### `/roles action:<Send|Create selector|Edit selector|Delete selector>`
