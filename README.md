@@ -109,6 +109,10 @@ Sets up and publishes the server's verification panel.
 - **Send** publishes a panel with a **Verify** button.
 - **Delete verify** removes the saved verification configuration.
 
+#### `/reactionverify message_id:<id> emoji:<emoji>`
+
+Creates a reaction-based role verification for a message in the current channel. The command opens a role selector; after you choose a role, the bot saves the mapping and adds the emoji reaction to the message. Users who add that reaction receive the selected role. The bot needs **View Channel**, **Read Message History**, **Add Reactions**, and **Manage Roles**, and its highest role must be above the selected role.
+
 #### `/age action:<Send|Create|Delete>`
 
 The command is registered for managing an age-role panel and exposes these actions. **The current `bot/commands/age.js` file does not implement the action handlers**, so this command is currently incomplete and should not be relied on.

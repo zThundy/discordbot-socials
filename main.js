@@ -22,7 +22,7 @@ const client = new Client({
         GatewayIntentBits.GuildMessageReactions,
         GatewayIntentBits.GuildInvites
     ],
-    partials: [Partials.Message, Partials.Channel]
+    partials: [Partials.Message, Partials.Channel, Partials.Reaction, Partials.User]
 });
 const config = require('./config.json');
 
@@ -102,6 +102,17 @@ client.on(Events.MessageDelete, (message) => {
     try {
         const bot = message.guildId && bots[message.guildId];
         if (bot) bot.event("messageDelete", message);
+    } catch (err) {
+        console.error(err);
+    }
+});
+
+client.on(Events.MessageReactionAdd, (reaction, user) => {
+    try {
+        const guildId = reaction.message.guildId ||
+            reaction.message.guild && reaction.message.guild.id;
+        const bot = guildId && bots[guildId];
+        if (bot) bot.event("messageReactionAdd", reaction, user);
     } catch (err) {
         console.error(err);
     }

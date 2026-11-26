@@ -219,6 +219,8 @@ class SQL {
                     { name: "guildId", type: "TEXT" },
                     { name: "roleId", type: "TEXT" }
                 ]);
+                await this._run("CREATE TABLE IF NOT EXISTS reactionVerifications (guildId TEXT NOT NULL, channelId TEXT NOT NULL, messageId TEXT NOT NULL, emojiIdentifier TEXT NOT NULL, roleId TEXT NOT NULL, createdBy TEXT NOT NULL, createdAt INTEGER NOT NULL)");
+                await this._run("CREATE UNIQUE INDEX IF NOT EXISTS idx_reactionVerifications_message_emoji ON reactionVerifications (guildId, messageId, emojiIdentifier)");
                 await this._run("CREATE TABLE IF NOT EXISTS kickChannelConfig (guildId TEXT PRIMARY KEY, channelId TEXT NOT NULL, messageId TEXT NOT NULL, description TEXT NOT NULL)");
                 await this._ensureColumns("kickChannelConfig", [
                     { name: "guildId", type: "TEXT" },
@@ -1386,6 +1388,33 @@ class SQL {
     deleteVerify(guildId) {
         console.log("<DATABASE> deleteVerify call");
         this.db.run("DELETE FROM verify WHERE guildId = ?", [guildId]);
+    }
+
+    getReactionVerification(guildId, messageId, emojiIdentifier) {
+        return new Promise((resolve, reject) => {
+            this.db.get(
+                "SELECT * FROM reactionVerifications WHERE guildId = ? AND messageId = ? AND emojiIdentifier = ?",
+                [guildId, messageId, emojiIdentifier],
+                (error, row) => {
+                    if (error) return reject(error);
+                    resolve(row || null);
+                }
+            );
+        });
+    }
+
+    createReactionVerification({ guildId, channelId, messageId, emojiIdentifier, roleId, createdBy }) {
+        return this._run(
+            "INSERT INTO reactionVerifications (guildId, channelId, messageId, emojiIdentifier, roleId, createdBy, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [guildId, channelId, messageId, emojiIdentifier, roleId, createdBy, Date.now()]
+        );
+    }
+
+    deleteReactionVerification(guildId, messageId, emojiIdentifier) {
+        return this._run(
+            "DELETE FROM reactionVerifications WHERE guildId = ? AND messageId = ? AND emojiIdentifier = ?",
+            [guildId, messageId, emojiIdentifier]
+        );
     }
 
     getKickChannel(guildId) {

@@ -288,6 +288,13 @@ class BOT {
                 if (command.module.userLeave)
                     command.module.userLeave(member, { database: this.database, uploader: this.uploader, config: this.config, client: this.client });
             });
+        } else if (event === "messageReactionAdd") {
+            const reaction = args[0];
+            const user = args[1];
+            this.commands.forEach(command => {
+                if (command.module.reactionAdd)
+                    command.module.reactionAdd(reaction, user, { database: this.database, client: this.client, config: this.config });
+            });
         }
     }
 
