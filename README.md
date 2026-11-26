@@ -133,7 +133,7 @@ Users must sign in with Discord and have the **Administrator** permission in a s
 
 The dashboard also has **Ticket attachments** and **Tickets** tabs. It lists attachments from open tickets and saved closed-ticket transcripts, and provides access to each indexed transcript. Transcript HTML is downloaded only when an administrator clicks its ticket. Attachment previews and downloads use an authenticated endpoint that checks both administrator access to the selected server and that the file belongs to that ticket. When a ticket closes, the bot saves server-scoped metadata beside its HTML transcript so the dashboard can safely associate it with the correct server. Transcript files created before this metadata was added cannot be assigned to a server and are not listed. Attachment metadata remains visible when the corresponding file has expired; with the default uploader settings, the file itself is automatically deleted after 30 days.
 
-All operations sent to the moderator log system are persisted to `bot/data/main.db`, even when no `/modlogs` channel is configured or its channel is unavailable. Stored details include Discord user/member, server and channel snapshots, operation metadata, message content and attachments where available, and before/after state for message edits. Interaction option values are stored in the JSON record. Treat this database as sensitive, restrict access to its backups, and use HTTPS when exposing the dashboard publicly. Dashboard sessions are held in memory and expire after 12 hours; restarting the bot signs users out. Log entries currently have no automatic retention limit.
+All operations sent to the moderator log system are persisted to `bot/data/main.db`, even when no `/modlogs` channels are configured or a destination is unavailable. Stored details include Discord user/member, server and channel snapshots, operation metadata, message content and attachments where available, and before/after state for message edits. Interaction option values are stored in the JSON record. Treat this database as sensitive, restrict access to its backups, and use HTTPS when exposing the dashboard publicly. Dashboard sessions are held in memory and expire after 12 hours; restarting the bot signs users out. Log entries currently have no automatic retention limit.
 
 #### `/ticket action:<Create setup|Send in channel|List configurations|Delete configuration> [config_id:<id>]`
 
@@ -153,9 +153,13 @@ Turns the current channel into a kick channel. When enabling it, provide `messag
 
 The bot needs **Kick Members** to kick users and **View Channel** plus **Manage Messages** in the kick channel and the other channels whose message history should be cleaned. It can only remove messages from channels it can access and manage.
 
-#### `/modlogs action:<Set this channel|Disable moderator logs>`
+#### `/modlogs action:<Configure this channel|View configuration|Disable this channel|Disable all moderator logs>`
 
-Run **Set this channel** in the text channel where moderators should receive log embeds. The bot needs **View Channel**, **Send Messages**, and **Embed Links** there. The setting is saved per server in the bot database. Choose **Disable moderator logs** to stop sending logs.
+Run **Configure this channel** in each text channel where moderators should receive logs, then select the event types to send there. You can configure multiple channels with different event selections. The interaction embed shows the event types currently configured for each channel, and previously selected event types are preselected in the menu.
+
+Available events include server interactions, member joins/leaves/updates/kicks/verifications, deleted and edited messages, and voice-channel joins/leaves/moves. The bot needs **View Channel**, **Send Messages**, and **Embed Links** in each configured channel.
+
+Choose **View configuration** to see the current channel-to-event mapping, **Disable this channel** to remove only the configuration for the current channel, or **Disable all moderator logs** to clear every configured channel. Existing single-channel configurations continue logging all event types until changed.
 
 The log channel receives server interactions, member joins and leaves, nickname and role changes, voice-channel joins, leaves and moves, successful verification, kicks performed by the kick-channel feature, and deleted or edited messages. Message embeds include the author, channel, message ID, and content when available; long content is truncated, and uncached messages are marked accordingly. JSON records also include interaction option values and detailed user, member, channel, message, and operation snapshots where available.
 
@@ -231,7 +235,7 @@ Available when `youtube.enabled` is `true`.
     │   ├── kickchannel.js     # Kick channel, message cleanup, and kick history
     │   ├── multiroles.js      # Multi-role selector panels
     │   ├── nickname.js        # Bot nickname management
-    │   ├── modlogs.js         # Moderator log channel configuration
+    │   ├── modlogs.js         # Moderator log channel and event configuration
     │   ├── roles.js           # Single-role selector panels
     │   ├── syncserver.js      # Cross-server role synchronization
     │   ├── ticket.js          # Ticket setup, opening, and closing

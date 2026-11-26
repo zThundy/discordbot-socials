@@ -140,28 +140,8 @@ async function sendModerationLog(guild, database, {
     }
 
     try {
-        const config = await database.getModerationLogChannel(guild.id);
-        if (!config) return false;
-
-        const channel = await guild.channels.fetch(config.channelId);
-        if (!channel || !channel.isTextBased() || typeof channel.send !== "function") {
-            console.warn(`Moderation log channel ${config.channelId} is unavailable in guild ${guild.id}.`);
-            return false;
-        }
-
-        const botMember = guild.members.me;
-        const permissions = botMember && channel.permissionsFor(botMember);
-        const sendPermission = channel.isThread && channel.isThread()
-            ? PermissionsBitField.Flags.SendMessagesInThreads
-            : PermissionsBitField.Flags.SendMessages;
-        if (!permissions ||
-            !permissions.has(PermissionsBitField.Flags.ViewChannel) ||
-            !permissions.has(sendPermission) ||
-            !permissions.has(PermissionsBitField.Flags.EmbedLinks)) {
-            console.warn(`The bot cannot send moderation logs to channel ${config.channelId} in guild ${guild.id}.`);
-            return false;
-        }
-
+        const destinations = await database.getModerationLogChannelsForEvent(guild.id, eventType);
+        if (!destinations.length) return false;
         const embed = new EmbedBuilder()
             .setColor(color)
             .setTitle(title)
@@ -169,8 +149,35 @@ async function sendModerationLog(guild, database, {
             .setTimestamp();
         if (fields.length) embed.addFields(...fields);
 
-        await channel.send({ embeds: [embed] });
-        return true;
+        let sent = false;
+        for (const destination of destinations) {
+            try {
+                const channel = await guild.channels.fetch(destination.channelId);
+                if (!channel || !channel.isTextBased() || typeof channel.send !== "function") {
+                    console.warn(`Moderation log channel ${destination.channelId} is unavailable in guild ${guild.id}.`);
+                    continue;
+                }
+
+                const botMember = guild.members.me;
+                const permissions = botMember && channel.permissionsFor(botMember);
+                const sendPermission = channel.isThread && channel.isThread()
+                    ? PermissionsBitField.Flags.SendMessagesInThreads
+                    : PermissionsBitField.Flags.SendMessages;
+                if (!permissions ||
+                    !permissions.has(PermissionsBitField.Flags.ViewChannel) ||
+                    !permissions.has(sendPermission) ||
+                    !permissions.has(PermissionsBitField.Flags.EmbedLinks)) {
+                    console.warn(`The bot cannot send moderation logs to channel ${destination.channelId} in guild ${guild.id}.`);
+                    continue;
+                }
+
+                await channel.send({ embeds: [embed] });
+                sent = true;
+            } catch (error) {
+                console.error(`Could not send moderation log "${eventType}" to channel ${destination.channelId}:`, error);
+            }
+        }
+        return sent;
     } catch (error) {
         console.error(`Could not send a moderation log for guild ${guild.id}:`, error);
         return false;

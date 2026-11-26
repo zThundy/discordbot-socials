@@ -52,7 +52,7 @@ async function execute(interaction, _, _, config) {
             },
             {
                 name: "📜 Moderator logs (/modlogs)",
-                value: "Configure the current channel to receive moderator logs, or disable logging for this server."
+                value: "Choose which moderation events are sent to each configured channel, view the channel-to-event summary, or disable logging."
             },
             {
                 name: "📜 Sync servers (/syncserver)",

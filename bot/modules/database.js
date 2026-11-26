@@ -240,6 +240,14 @@ class SQL {
                     { name: "guildId", type: "TEXT" },
                     { name: "channelId", type: "TEXT" }
                 ]);
+                await this._run("CREATE TABLE IF NOT EXISTS moderationLogChannelConfig (guildId TEXT NOT NULL, channelId TEXT NOT NULL, eventTypes TEXT NOT NULL, PRIMARY KEY (guildId, channelId))");
+                await this._ensureColumns("moderationLogChannelConfig", [
+                    { name: "guildId", type: "TEXT" },
+                    { name: "channelId", type: "TEXT" },
+                    { name: "eventTypes", type: "TEXT" }
+                ]);
+                await this._run("INSERT OR IGNORE INTO moderationLogChannelConfig (guildId, channelId, eventTypes) SELECT guildId, channelId, '[\"*\"]' FROM moderationLogConfig");
+                await this._run("DELETE FROM moderationLogConfig");
                 await this._run("CREATE TABLE IF NOT EXISTS moderationLogs (id INTEGER PRIMARY KEY AUTOINCREMENT, guildId TEXT NOT NULL, createdAt INTEGER NOT NULL, eventType TEXT NOT NULL, userId TEXT, channelId TEXT, payloadJson TEXT NOT NULL)");
                 await this._ensureColumns("moderationLogs", [
                     { name: "id", type: "INTEGER" },
@@ -1427,19 +1435,38 @@ class SQL {
     }
 
     getModerationLogChannel(guildId) {
-        return new Promise((resolve, reject) => {
-            this.db.get("SELECT channelId FROM moderationLogConfig WHERE guildId = ?", [guildId], (err, row) => {
-                if (err) return reject(err);
-                resolve(row);
-            });
-        });
+        return this.getModerationLogChannels(guildId).then(channels => channels[0] || null);
     }
 
-    saveModerationLogChannel(guildId, channelId) {
+    getModerationLogChannels(guildId) {
+        return this._all(
+            "SELECT channelId, eventTypes FROM moderationLogChannelConfig WHERE guildId = ? ORDER BY channelId",
+            [guildId]
+        ).then(rows => rows.map(row => {
+            let eventTypes;
+            try {
+                eventTypes = JSON.parse(row.eventTypes);
+            } catch (error) {
+                throw new Error(`Invalid moderator log event configuration for channel ${row.channelId}: ${error.message}`);
+            }
+            if (!Array.isArray(eventTypes) || eventTypes.some(eventType => typeof eventType !== "string")) {
+                throw new Error(`Invalid moderator log event configuration for channel ${row.channelId}.`);
+            }
+            return { channelId: row.channelId, eventTypes };
+        }));
+    }
+
+    getModerationLogChannelsForEvent(guildId, eventType) {
+        return this.getModerationLogChannels(guildId).then(channels =>
+            channels.filter(channel => channel.eventTypes.includes("*") || channel.eventTypes.includes(eventType))
+        );
+    }
+
+    saveModerationLogChannel(guildId, channelId, eventTypes = ["*"]) {
         return new Promise((resolve, reject) => {
             this.db.run(
-                "INSERT OR REPLACE INTO moderationLogConfig (guildId, channelId) VALUES (?, ?)",
-                [guildId, channelId],
+                "INSERT OR REPLACE INTO moderationLogChannelConfig (guildId, channelId, eventTypes) VALUES (?, ?, ?)",
+                [guildId, channelId, JSON.stringify(eventTypes)],
                 (err) => {
                     if (err) return reject(err);
                     resolve();
@@ -1448,9 +1475,13 @@ class SQL {
         });
     }
 
-    deleteModerationLogChannel(guildId) {
+    deleteModerationLogChannel(guildId, channelId) {
         return new Promise((resolve, reject) => {
-            this.db.run("DELETE FROM moderationLogConfig WHERE guildId = ?", [guildId], (err) => {
+            const query = channelId
+                ? "DELETE FROM moderationLogChannelConfig WHERE guildId = ? AND channelId = ?"
+                : "DELETE FROM moderationLogChannelConfig WHERE guildId = ?";
+            const params = channelId ? [guildId, channelId] : [guildId];
+            this.db.run(query, params, (err) => {
                 if (err) return reject(err);
                 resolve();
             });
